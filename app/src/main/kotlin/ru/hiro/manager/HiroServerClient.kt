@@ -1,5 +1,6 @@
 package ru.hiro.manager
 
+import android.os.Build
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
 import java.net.HttpURLConnection
@@ -43,8 +44,19 @@ class HiroServerClient {
             ?: throw HiroServerException("password_unsupported", "Этот сервер не поддерживает вход по паролю")
         val endpoint = passwordMethod.loginEndpoint
             ?: throw HiroServerException("missing_login_endpoint", "Сервер не сообщил адрес входа")
+        val refreshEndpoint = passwordMethod.refreshEndpoint
+            ?: throw HiroServerException("persistent_session_unsupported", "Сервер не поддерживает постоянные сессии устройств")
+        val logoutEndpoint = passwordMethod.logoutEndpoint
+            ?: throw HiroServerException("persistent_session_unsupported", "Сервер не поддерживает отзыв сессии")
+        if (!passwordMethod.persistentSession) {
+            throw HiroServerException("persistent_session_unsupported", "Сервер не поддерживает постоянные сессии устройств")
+        }
         val loginUrl = resolve(serverUrl, endpoint)
+        val refreshUrl = resolve(serverUrl, refreshEndpoint)
+        val logoutUrl = resolve(serverUrl, logoutEndpoint)
         requireSameOrigin(serverUrl, loginUrl, "Сервер попытался перенаправить пароль на другой адрес")
+        requireSameOrigin(serverUrl, refreshUrl, "Сервер указал небезопасный адрес обновления сессии")
+        requireSameOrigin(serverUrl, logoutUrl, "Сервер указал небезопасный адрес выхода")
 
         val apiBaseUrl = resolve(serverUrl, discovery.apiBase)
         requireSameOrigin(serverUrl, apiBaseUrl, "API сервера находится на другом адресе")
@@ -52,10 +64,12 @@ class HiroServerClient {
             request(
                 loginUrl,
                 method = "POST",
-                body = json.encodeToString(HiroLoginRequest(username.trim(), password))
+                body = json.encodeToString(HiroLoginRequest(username.trim(), password, deviceName()))
             )
         )
-        if (!loginResponse.tokenType.equals("Bearer", ignoreCase = true) || loginResponse.accessToken.isBlank()) {
+        if (!loginResponse.tokenType.equals("Bearer", ignoreCase = true) ||
+            loginResponse.accessToken.isBlank() || loginResponse.refreshToken.isBlank() || loginResponse.sessionId.isBlank()
+        ) {
             throw HiroServerException("invalid_session", "Сервер вернул неподдерживаемую сессию")
         }
         val expiresAt = runCatching { Instant.parse(loginResponse.expiresAt) }.getOrNull()
@@ -66,7 +80,11 @@ class HiroServerClient {
             serverUrl = serverUrl,
             apiBaseUrl = apiBaseUrl,
             accessToken = loginResponse.accessToken,
+            refreshToken = loginResponse.refreshToken,
             expiresAt = loginResponse.expiresAt,
+            sessionId = loginResponse.sessionId,
+            refreshEndpointUrl = refreshUrl,
+            logoutEndpointUrl = logoutUrl,
             user = loginResponse.user
         )
         return validate(session)
@@ -76,6 +94,41 @@ class HiroServerClient {
         val meUrl = resolve(session.apiBaseUrl + "/", "auth/me")
         val response = decode<HiroMeResponse>(request(meUrl, bearerToken = session.accessToken))
         return session.copy(user = response.user)
+    }
+
+    fun refresh(session: HiroSession): HiroSession {
+        requireSameOrigin(session.serverUrl, session.refreshEndpointUrl, "Некорректный адрес обновления сессии")
+        val response = decode<HiroLoginResponse>(
+            request(
+                session.refreshEndpointUrl,
+                method = "POST",
+                body = json.encodeToString(HiroRefreshRequest(session.refreshToken))
+            )
+        )
+        if (!response.tokenType.equals("Bearer", ignoreCase = true) ||
+            response.accessToken.isBlank() || response.refreshToken.isBlank() || response.sessionId != session.sessionId
+        ) {
+            throw HiroServerException("invalid_session", "Сервер вернул неподдерживаемую сессию")
+        }
+        val expiresAt = runCatching { Instant.parse(response.expiresAt) }.getOrNull()
+        if (expiresAt == null || !expiresAt.isAfter(Instant.now())) {
+            throw HiroServerException("invalid_session", "Сервер вернул некорректный срок токена")
+        }
+        return session.copy(
+            accessToken = response.accessToken,
+            refreshToken = response.refreshToken,
+            expiresAt = response.expiresAt,
+            user = response.user
+        )
+    }
+
+    fun logout(session: HiroSession) {
+        requireSameOrigin(session.serverUrl, session.logoutEndpointUrl, "Некорректный адрес выхода")
+        request(
+            session.logoutEndpointUrl,
+            method = "POST",
+            body = json.encodeToString(HiroRefreshRequest(session.refreshToken))
+        )
     }
 
     private inline fun <reified T> decode(body: String): T = try {
@@ -168,6 +221,13 @@ class HiroServerClient {
         uri.port >= 0 -> uri.port
         uri.scheme.equals("https", true) -> 443
         else -> 80
+    }
+
+    private fun deviceName(): String {
+        val manufacturer = Build.MANUFACTURER.trim()
+        val model = Build.MODEL.trim()
+        return listOf(manufacturer, model).filter { it.isNotBlank() }.joinToString(" ").take(120)
+            .ifBlank { "Android device" }
     }
 
     companion object {
