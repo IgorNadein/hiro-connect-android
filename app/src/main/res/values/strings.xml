@@ -3,6 +3,7 @@
     <string name="app_name" translatable="false">HI-RO Connect</string>
     <string name="app_name_plus" translatable="false">HI-RO Connect</string>
     <string name="brand_tagline">Operator workspace</string>
+    <string name="server_logout">Sign out from server</string>
     <string name="gateway_ready">Ready for calls</string>
     <string name="gateway_connecting">Connecting to gateway</string>
     <string name="new_call">New call</string>

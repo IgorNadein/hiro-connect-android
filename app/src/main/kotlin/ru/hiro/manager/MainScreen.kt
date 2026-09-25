@@ -209,6 +209,8 @@ private val showSelectItemDialog = CustomElements.showSelectItemDialog
 fun NavGraphBuilder.mainScreenRoute(
     navController: NavController,
     viewModel: ViewModel,
+    serverUser: HiroUser,
+    onServerLogout: () -> Unit,
     onRequestPermissions: () -> Unit,
     onRestartApp: () -> Unit,
     onQuitApp: () -> Unit
@@ -217,6 +219,8 @@ fun NavGraphBuilder.mainScreenRoute(
         MainScreen(
             navController = navController,
             viewModel = viewModel,
+            serverUser = serverUser,
+            onServerLogout = onServerLogout,
             onRequestPermissions = onRequestPermissions,
             onRestartClick = onRestartApp,
             onQuitClick = onQuitApp
@@ -228,6 +232,8 @@ fun NavGraphBuilder.mainScreenRoute(
 private fun MainScreen(
     navController: NavController,
     viewModel: ViewModel,
+    serverUser: HiroUser,
+    onServerLogout: () -> Unit,
     onRequestPermissions: () -> Unit,
     onRestartClick: () -> Unit,
     onQuitClick: () -> Unit
@@ -493,6 +499,8 @@ private fun MainScreen(
                 TopAppBar(
                     viewModel = viewModel,
                     navController = navController,
+                    serverUser = serverUser,
+                    onServerLogout = onServerLogout,
                     onBackupClick = { launchBackupRequest() },
                     onRestoreClick = { launchRestoreRequest() },
                     onLogcatClick = { launchLogcatRequest() },
@@ -511,6 +519,8 @@ private fun MainScreen(
 private fun TopAppBar(
     viewModel: ViewModel,
     navController: NavController,
+    serverUser: HiroUser,
+    onServerLogout: () -> Unit,
     onBackupClick: () -> Unit,
     onRestoreClick: () -> Unit,
     onLogcatClick: () -> Unit,
@@ -535,6 +545,7 @@ private fun TopAppBar(
     val logcat = stringResource(R.string.logcat)
     val restart = stringResource(R.string.restart)
     val quit = stringResource(R.string.quit)
+    val serverLogout = stringResource(R.string.server_logout)
 
     TopAppBar(
         title = {
@@ -546,7 +557,7 @@ private fun TopAppBar(
                     letterSpacing = (-0.2).sp
                 )
                 Text(
-                    text = stringResource(R.string.brand_tagline),
+                    text = "${serverUser.displayName} · ${serverUser.role}",
                     fontSize = 11.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -690,6 +701,7 @@ private fun TopAppBar(
                     MenuItem(backup, Icons.Outlined.Upload),
                     MenuItem(restore, Icons.Outlined.Download),
                     if (VERSION.SDK_INT >= 29) MenuItem(logcat, Icons.AutoMirrored.Outlined.ReceiptLong) else null,
+                    MenuItem(serverLogout, Icons.AutoMirrored.Filled.Logout),
                     MenuItem(restart, Icons.Outlined.RestartAlt),
                     MenuItem(quit, Icons.AutoMirrored.Filled.Logout)
                 ),
@@ -702,6 +714,7 @@ private fun TopAppBar(
                         backup -> onBackupClick()
                         restore -> onRestoreClick()
                         logcat -> onLogcatClick()
+                        serverLogout -> onServerLogout()
                         restart -> onRestartClick()
                         quit -> onQuitClick()
                     }

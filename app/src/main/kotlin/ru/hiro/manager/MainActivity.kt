@@ -31,7 +31,9 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.lifecycle.Observer
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.rememberNavController
@@ -56,6 +58,7 @@ class MainActivity : ComponentActivity() {
     private var initialized = false
 
     private val viewModel: ViewModel by viewModels()
+    private val authViewModel: HiroAuthViewModel by viewModels()
     private lateinit var navController:  NavHostController
 
     @SuppressLint("ClickableViewAccessibility")
@@ -242,59 +245,78 @@ class MainActivity : ComponentActivity() {
         setContent {
 
             AppTheme {
+                val authState by authViewModel.state.collectAsStateWithLifecycle()
+                when (val state = authState) {
+                    HiroAuthState.Checking -> HiroAuthLoadingScreen()
+                    is HiroAuthState.SignedOut -> HiroLoginScreen(
+                        serverUrl = state.serverUrl,
+                        error = state.error,
+                        signingIn = false,
+                        onSignIn = authViewModel::signIn
+                    )
+                    is HiroAuthState.SigningIn -> HiroLoginScreen(
+                        serverUrl = state.serverUrl,
+                        error = null,
+                        signingIn = true,
+                        onSignIn = authViewModel::signIn
+                    )
+                    is HiroAuthState.SignedIn -> {
+                        navController = rememberNavController()
 
-                navController = rememberNavController()
-
-                LaunchedEffect(key1 = viewModel) {
-                    viewModel.navigationCommand.collect { command ->
-                        Log.d(TAG, "MainActivity: Received NavigationCommand: $command")
-                        when (command) {
-                            is NavigationCommand.NavigateToChat -> {
-                                val encodedAor = Uri.encode(command.aor)
-                                val encodedPeer = Uri.encode(command.peerUri)
-                                val route = "chat/$encodedAor/$encodedPeer"
-                                navController.navigate(route) { launchSingleTop = true }
-                            }
-                            is NavigationCommand.NavigateToCalls -> {
-                                val encodedAor = Uri.encode(command.aor)
-                                val route = "calls/$encodedAor"
-                                navController.navigate(route) { launchSingleTop = true }
-                            }
-                            is NavigationCommand.NavigateToChats ->
-                                navController.navigate("chats") { launchSingleTop = true }
-                            is NavigationCommand.NavigateToHome ->
-                                navController.navigate("main") {
-                                    popUpTo("main") { inclusive = true }
+                        LaunchedEffect(key1 = viewModel) {
+                            viewModel.navigationCommand.collect { command ->
+                                Log.d(TAG, "MainActivity: Received NavigationCommand: $command")
+                                when (command) {
+                                    is NavigationCommand.NavigateToChat -> {
+                                        val encodedAor = Uri.encode(command.aor)
+                                        val encodedPeer = Uri.encode(command.peerUri)
+                                        val route = "chat/$encodedAor/$encodedPeer"
+                                        navController.navigate(route) { launchSingleTop = true }
+                                    }
+                                    is NavigationCommand.NavigateToCalls -> {
+                                        val encodedAor = Uri.encode(command.aor)
+                                        val route = "calls/$encodedAor"
+                                        navController.navigate(route) { launchSingleTop = true }
+                                    }
+                                    is NavigationCommand.NavigateToChats ->
+                                        navController.navigate("chats") { launchSingleTop = true }
+                                    is NavigationCommand.NavigateToHome ->
+                                        navController.navigate("main") {
+                                            popUpTo("main") { inclusive = true }
+                                        }
                                 }
+                            }
+                        }
+
+                        NavHost(navController, startDestination = "main") {
+                            mainScreenRoute(
+                                navController = navController,
+                                viewModel = viewModel,
+                                serverUser = state.session.user,
+                                onServerLogout = authViewModel::signOut,
+                                onRequestPermissions = { requestPermissionsLauncher.launch(permissions) },
+                                onRestartApp = { restartApp() },
+                                onQuitApp = { quitApp() }
+                            )
+                            aboutScreenRoute(navController)
+                            settingsScreenRoute(
+                                navController = navController,
+                                onRestartApp = { restartApp() }
+                            )
+                            accountsScreenRoute(navController)
+                            audioScreenRoute(navController)
+                            accountScreenRoute(navController)
+                            codecsScreenRoute(navController)
+                            contactsScreenRoute(navController)
+                            contactScreenRoute(navController, viewModel)
+                            callsScreenRoute(navController, viewModel)
+                            callDetailsScreenRoute(navController, viewModel)
+                            blockedScreenRoute(navController)
+                            blockingScreenRoute(navController)
+                            chatsScreenRoute(navController)
+                            chatScreenRoute(navController, viewModel)
                         }
                     }
-                }
-
-                NavHost(navController, startDestination = "main") {
-                    mainScreenRoute(
-                        navController = navController,
-                        viewModel = viewModel,
-                        onRequestPermissions = { requestPermissionsLauncher.launch(permissions) },
-                        onRestartApp = { restartApp() },
-                        onQuitApp = { quitApp() }
-                    )
-                    aboutScreenRoute(navController)
-                    settingsScreenRoute(
-                        navController = navController,
-                        onRestartApp = { restartApp() }
-                    )
-                    accountsScreenRoute(navController)
-                    audioScreenRoute(navController)
-                    accountScreenRoute(navController)
-                    codecsScreenRoute(navController)
-                    contactsScreenRoute(navController)
-                    contactScreenRoute(navController, viewModel)
-                    callsScreenRoute(navController, viewModel)
-                    callDetailsScreenRoute(navController, viewModel)
-                    blockedScreenRoute(navController)
-                    blockingScreenRoute(navController)
-                    chatsScreenRoute(navController)
-                    chatScreenRoute(navController, viewModel)
                 }
             }
         }
