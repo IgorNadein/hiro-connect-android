@@ -1,0 +1,749 @@
+package ru.hiro.manager
+
+import android.content.Context
+import android.content.res.Configuration
+import android.graphics.Bitmap
+import android.widget.Toast
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.ScrollState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material3.BasicAlertDialog
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.SoftwareKeyboardController
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.DialogProperties
+import kotlin.jvm.JvmName
+
+data class MenuItem(
+    val text: String,
+    val icon: ImageVector? = null,
+    val subItems: List<MenuItem>? = null,
+    val onSubItemClick: ((String) -> Unit)? = null
+)
+
+object CustomElements {
+
+    val selectItems = mutableStateOf(listOf<String>())
+    val selectItemAction = mutableStateOf<(Int) -> Unit>({ _ -> run {} })
+    val showSelectItemDialog = mutableStateOf(false)
+
+    @Composable
+    fun Button(
+        onClick: () -> Unit,
+        onLongClick: () -> Unit,
+        modifier: Modifier = Modifier,
+        shape: Shape,
+        border: BorderStroke? = null,
+        color: Color,
+        content: @Composable RowScope.() -> Unit
+    ) {
+        Surface(
+            shape = shape,
+            color = color,
+            border = border,
+            modifier = modifier
+                .pointerInput(Unit) {
+                    detectTapGestures(
+                        onTap = { onClick() },
+                        onLongPress = { onLongClick() },
+                    )
+                }
+                .then(modifier),
+        ) {
+            Row(
+                modifier = Modifier.padding(ButtonDefaults.ContentPadding),
+                verticalAlignment = Alignment.CenterVertically,
+                content = content
+            )
+        }
+    }
+
+    @Composable
+    @JvmName("DropdownMenuString")
+    fun DropdownMenu(
+        expanded: Boolean,
+        onDismissRequest: () -> Unit,
+        items: List<String>,
+        onItemClick: (String) -> Unit
+    ) {
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = onDismissRequest,
+            menuItems = items.map { MenuItem(it) },
+            onItemClick = onItemClick
+        )
+    }
+
+    @Composable
+    fun DropdownMenu(
+        expanded: Boolean,
+        onDismissRequest: () -> Unit,
+        menuItems: List<MenuItem>,
+        onItemClick: (String) -> Unit
+    ) {
+        val hasAnyIcon = menuItems.any { it.icon != null || it.subItems != null }
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = onDismissRequest,
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            menuItems.forEachIndexed { index, menuItem ->
+                var subMenuExpanded by remember { mutableStateOf(false) }
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            text = menuItem.text,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 16.sp
+                        )
+                    },
+                    trailingIcon = if (menuItem.subItems != null) {
+                        {
+                            Box {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                DropdownMenu(
+                                    expanded = subMenuExpanded,
+                                    onDismissRequest = { subMenuExpanded = false },
+                                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                                    shape = RoundedCornerShape(16.dp)
+                                ) {
+                                    menuItem.subItems.forEachIndexed { subIndex, subMenuItem ->
+                                        DropdownMenuItem(
+                                            text = {
+                                                Text(
+                                                    text = subMenuItem.text,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    fontSize = 16.sp
+                                                )
+                                            },
+                                            trailingIcon = if (subMenuItem.icon != null) {
+                                                {
+                                                    Icon(
+                                                        imageVector = subMenuItem.icon,
+                                                        contentDescription = null,
+                                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                                    )
+                                                }
+                                            } else null,
+                                            onClick = {
+                                                subMenuExpanded = false
+                                                menuItem.onSubItemClick?.invoke(subMenuItem.text)
+                                                onDismissRequest()
+                                            }
+                                        )
+                                        if (subIndex < menuItem.subItems.size - 1)
+                                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                                    }
+                                }
+                            }
+                        }
+                    } else if (hasAnyIcon) {
+                        {
+                            if (menuItem.icon != null)
+                                Icon(
+                                    imageVector = menuItem.icon,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            else
+                                Spacer(Modifier.size(24.dp))
+                        }
+                    } else
+                        null,
+                    onClick = {
+                        if (menuItem.subItems != null)
+                            subMenuExpanded = true
+                        else
+                            onItemClick(menuItem.text)
+                    }
+                )
+                if (index < menuItems.size - 1)
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            }
+        }
+    }
+
+    @Composable
+    fun TextAvatar(name: String, color: Int, size: Dp = 36.dp) {
+        Box(
+            modifier = Modifier.size(size),
+            contentAlignment = Alignment.Center
+        ) {
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                drawCircle(SolidColor(Color(color)))
+            }
+            val text = if (name == "") "" else name[0].uppercase()[0].toString()
+            Text(text, color = Color.White, fontSize = (size.value * 0.55).sp)
+        }
+    }
+
+    @Composable
+    fun ImageAvatar(bitmap: Bitmap, size: Dp = 36.dp) {
+        Image(
+            bitmap = bitmap.asImageBitmap(),
+            contentDescription = "Avatar",
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.size(size).clip(CircleShape)
+        )
+    }
+
+    @Composable
+    fun Modifier.verticalScrollbar(
+        state: ScrollState,
+        scrollbarWidth: Dp = 4.dp,
+        alwaysShow: Boolean = true,
+        color: Color = MaterialTheme.colorScheme.outlineVariant
+    ): Modifier {
+        val alpha by animateFloatAsState(
+            targetValue = if(state.isScrollInProgress || alwaysShow) 1f else 0f,
+            animationSpec = tween(400, delayMillis = if(state.isScrollInProgress) 0 else 700),
+            label = "scrollbarAlpha"
+        )
+        return this then Modifier.drawWithContent {
+            drawContent()
+
+            val viewHeight = state.viewportSize.toFloat()
+            if (viewHeight <= 0f) return@drawWithContent // Safety check for zero height
+
+            val contentHeight = state.maxValue + viewHeight
+            val minHeight = 10.dp.toPx()
+
+            // Ensure the 'max' of coerceIn is at least as large as 'min'
+            val scrollbarHeight = (viewHeight * (viewHeight / contentHeight))
+                .coerceIn(minHeight.coerceAtMost(viewHeight) .. viewHeight)
+
+            val variableZone = viewHeight - scrollbarHeight
+
+            // Prevent division by zero if maxValue is 0 (no scrolling needed)
+            val scrollbarOffsetY = if (state.maxValue > 0)
+                (state.value.toFloat() / state.maxValue) * variableZone
+            else
+                0f
+
+            drawRoundRect(
+                cornerRadius = CornerRadius(scrollbarWidth.toPx() / 2, scrollbarWidth.toPx() / 2),
+                color = color,
+                topLeft = Offset(this.size.width - scrollbarWidth.toPx(), scrollbarOffsetY),
+                size = Size(scrollbarWidth.toPx(), scrollbarHeight),
+                alpha = alpha
+            )
+        }
+    }
+
+    @Composable
+    fun Modifier.verticalScrollbar(
+        state: LazyListState,
+        width: Dp = 4.dp,
+        alwaysShow: Boolean = true,
+        color: Color = MaterialTheme.colorScheme.outlineVariant
+    ): Modifier {
+        val alpha by animateFloatAsState(
+            targetValue = if (state.isScrollInProgress || alwaysShow) 1f else 0f,
+            animationSpec = tween(durationMillis = if (state.isScrollInProgress) 150 else 500),
+            label = "lazyScrollbarAlpha"
+        )
+        return this.drawWithContent {
+            drawContent()
+
+            val totalItems = state.layoutInfo.totalItemsCount
+            val visibleItemsInfo = state.layoutInfo.visibleItemsInfo
+
+            // Check if there are items and if they actually exceed the viewport
+            if (totalItems > 0 && visibleItemsInfo.isNotEmpty()) {
+                val firstVisibleElementIndex = visibleItemsInfo.first().index
+                val needDrawScrollbar = state.isScrollInProgress || alpha > 0.0f
+
+                if (needDrawScrollbar) {
+                    val elementHeight = this.size.height / totalItems
+                    val scrollbarOffsetY = firstVisibleElementIndex * elementHeight
+                    val scrollbarHeight = visibleItemsInfo.size * elementHeight
+
+                    // Only draw if the scrollbar is actually smaller than the track
+                    if (scrollbarHeight < this.size.height)
+                        drawRoundRect(
+                            cornerRadius = CornerRadius(width.toPx() / 2, width.toPx() / 2),
+                            color = color,
+                            topLeft = Offset(this.size.width - width.toPx(), scrollbarOffsetY),
+                            size = Size(width.toPx(), scrollbarHeight),
+                            alpha = alpha
+                        )
+                }
+            }
+        }
+    }
+
+    @OptIn(ExperimentalMaterial3Api::class)
+    @Composable
+    fun AlertDialog(
+        showDialog: MutableState<Boolean>,
+        title: String,
+        message: String,
+        firstButtonText: String = "",
+        onFirstClicked: () -> Unit = {},
+        secondButtonText: String = "",
+        onSecondClicked: () -> Unit = {},
+        thirdButtonText: String = "",
+        onThirdClicked: () -> Unit = {},
+        lastButtonText: String = "",
+        onLastClicked: () -> Unit = {}
+    ) {
+        if (showDialog.value) {
+            val configuration = LocalConfiguration.current
+            val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+            BasicAlertDialog(
+                onDismissRequest = { showDialog.value = false },
+                properties = DialogProperties(usePlatformDefaultWidth = false),
+                content = {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth(if (isLandscape) 0.9f else 0.95f)
+                            .padding(top = 16.dp, start = 16.dp, end = 16.dp, bottom = 0.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant
+                        )
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text(
+                                text = title,
+                                modifier = Modifier.fillMaxWidth(),
+                                textAlign = TextAlign.Start,
+                                fontSize = 20.sp,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                            val scrollState = rememberScrollState()
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .weight(1f, fill = false)
+                                    .verticalScrollbar(scrollState)
+                                    .verticalScroll(scrollState)
+                            ) {
+                                Text(
+                                    text = message,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    textAlign = TextAlign.Start,
+                                    fontSize = 16.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            val buttons = listOf(
+                                firstButtonText, secondButtonText, thirdButtonText, lastButtonText
+                            )
+                            val buttonCount = buttons.count { it.isNotEmpty() }
+
+                            if (buttonCount > 0) {
+
+                                if (buttonCount >= 3)
+                                    // Use a Column for 3-4 buttons, aligned to the end (right)
+                                    Column(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalAlignment = Alignment.End
+                                    ) {
+                                        if (firstButtonText.isNotEmpty())
+                                            TextButton(onClick = {
+                                                onFirstClicked()
+                                                showDialog.value = false
+                                            }) {
+                                                Text(
+                                                    text = firstButtonText.uppercase(),
+                                                    fontSize = 14.sp,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+                                        if (secondButtonText.isNotEmpty())
+                                            TextButton(onClick = {
+                                                onSecondClicked()
+                                                showDialog.value = false
+                                            }) {
+                                                Text(
+                                                    text = secondButtonText.uppercase(),
+                                                    fontSize = 14.sp,
+                                                    color = MaterialTheme.colorScheme.primary,
+                                                )
+                                            }
+                                        if (thirdButtonText.isNotEmpty())
+                                            TextButton(onClick = {
+                                                onThirdClicked()
+                                                showDialog.value = false
+                                            }) {
+                                                Text(
+                                                    text = thirdButtonText.uppercase(),
+                                                    fontSize = 14.sp,
+                                                    color = MaterialTheme.colorScheme.primary,
+                                                )
+                                            }
+                                        if (lastButtonText.isNotEmpty())
+                                            TextButton(onClick = {
+                                                onLastClicked()
+                                                showDialog.value = false
+                                            }) {
+                                                Text(
+                                                    text = lastButtonText.uppercase(),
+                                                    fontSize = 14.sp,
+                                                    color = MaterialTheme.colorScheme.primary
+                                                )
+                                            }
+                                    }
+                                else
+                                    // Use the existing Row for 1 or 2 buttons
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.End
+                                    ) {
+                                        if (firstButtonText.isNotEmpty())
+                                            TextButton(onClick = {
+                                                onFirstClicked()
+                                                showDialog.value = false
+                                            }) {
+                                                Text(
+                                                    text = firstButtonText.uppercase(),
+                                                    fontSize = 14.sp,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+                                        if (secondButtonText.isNotEmpty())
+                                            TextButton(onClick = {
+                                                onSecondClicked()
+                                                showDialog.value = false
+                                            }) {
+                                                Text(
+                                                    text = secondButtonText.uppercase(),
+                                                    fontSize = 14.sp,
+                                                    color = MaterialTheme.colorScheme.primary
+                                                )
+                                            }
+                                        if (thirdButtonText.isNotEmpty())
+                                            TextButton(onClick = {
+                                                onThirdClicked()
+                                                showDialog.value = false
+                                            }) {
+                                                Text(
+                                                    text = thirdButtonText.uppercase(),
+                                                    fontSize = 14.sp,
+                                                    color = MaterialTheme.colorScheme.primary
+                                                )
+                                            }
+                                        if (lastButtonText.isNotEmpty())
+                                            TextButton(onClick = {
+                                                onLastClicked()
+                                                showDialog.value = false
+                                            }) {
+                                                Text(
+                                                    text = lastButtonText.uppercase(),
+                                                    fontSize = 14.sp,
+                                                    color = MaterialTheme.colorScheme.primary
+                                                )
+                                            }
+                                    }
+                            }
+                        }
+                    }
+                }
+            )
+        }
+    }
+
+    @OptIn(ExperimentalMaterial3Api::class)
+    @Composable
+    fun SelectableAlertDialog(
+        openDialog: MutableState<Boolean>,
+        title: String,
+        items: List<String>,
+        onItemClicked: (Int) -> Unit,
+        neutralButtonText: String = "",
+        onNeutralClicked: () -> Unit = {}
+    ) {
+        if (openDialog.value) {
+            val configuration = LocalConfiguration.current
+            val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+            BasicAlertDialog(
+                onDismissRequest = { openDialog.value = false },
+                properties = DialogProperties(usePlatformDefaultWidth = false),
+                content = {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth(if (isLandscape) 0.9f else 0.95f)
+                            .padding(top = 16.dp, start = 16.dp, end = 16.dp, bottom = 0.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant
+                        )
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text(
+                                text = title,
+                                fontSize = 20.sp,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                textAlign = TextAlign.Start,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                            LazyColumn(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalAlignment = Alignment.End
+                            ) {
+                                itemsIndexed(items) { index, item ->
+                                    TextButton(
+                                        onClick = {
+                                            onItemClicked(index)
+                                            openDialog.value = false
+                                        },
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Text(
+                                            text = stringResource(R.string.bullet_item, item),
+                                            color = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.fillMaxWidth(),
+                                            textAlign = TextAlign.Start
+                                        )
+                                    }
+                                }
+                            }
+                            if (neutralButtonText.isNotEmpty()) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.End
+                                ) {
+                                    TextButton(
+                                        onClick = {
+                                            onNeutralClicked()
+                                            openDialog.value = false
+                                        }
+                                    ) {
+                                        Text(
+                                            text = neutralButtonText.uppercase(),
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            )
+        }
+    }
+
+    @OptIn(ExperimentalMaterial3Api::class)
+    @Composable
+    fun PasswordDialog(
+        ctx: Context,
+        showPasswordDialog: MutableState<Boolean>,
+        password: MutableState<String>,
+        emptyOk: Boolean = false,
+        keyboardController: SoftwareKeyboardController?,
+        title: String,
+        message: String = "",
+        okAction: () -> Unit,
+        cancelAction: () -> Unit
+    ) {
+        val showPassword = remember { mutableStateOf(false) }
+        val focusRequester = remember { FocusRequester() }
+
+        if (showPasswordDialog.value) {
+            val configuration = LocalConfiguration.current
+            val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+            BasicAlertDialog(
+                properties = DialogProperties(
+                    dismissOnBackPress = false,
+                    dismissOnClickOutside = false,
+                    usePlatformDefaultWidth = false
+                ),
+                onDismissRequest = {
+                    keyboardController?.hide()
+                    showPasswordDialog.value = false
+                }
+            ) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth(if (isLandscape) 0.9f else 0.95f)
+                        .padding(top = 16.dp, start = 16.dp, end = 16.dp, bottom = 0.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                    )
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(
+                            text = title,
+                            fontSize = 20.sp,
+                            modifier = Modifier.padding(top = 16.dp, bottom = 16.dp),
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                        if (message.isNotEmpty())
+                            Text(
+                                text = message,
+                                fontSize = 16.sp,
+                                modifier = Modifier.padding(16.dp),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        OutlinedTextField(
+                            value = password.value,
+                            singleLine = true,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                cursorColor = MaterialTheme.colorScheme.primary,
+                            ),
+                            onValueChange = { password.value = it },
+                            visualTransformation = if (showPassword.value)
+                                VisualTransformation.None
+                            else
+                                PasswordVisualTransformation(),
+                            trailingIcon = {
+                                IconButton(onClick = {
+                                    showPassword.value = !showPassword.value
+                                }) {
+                                    Icon(
+                                        imageVector = if (showPassword.value)
+                                            Icons.Filled.Visibility
+                                        else
+                                            Icons.Filled.VisibilityOff,
+                                        contentDescription = "Visibility",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(start = 4.dp, end = 4.dp, top = 12.dp, bottom = 2.dp)
+                                .focusRequester(focusRequester),
+                            textStyle = TextStyle(
+                                fontSize = 18.sp,
+                                color = MaterialTheme.colorScheme.onSurface
+                            ),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text)
+                        )
+                        LaunchedEffect(key1 = Unit) {
+                            focusRequester.requestFocus()
+                            keyboardController?.show()
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End
+                        ) {
+                            TextButton(
+                                onClick = {
+                                    keyboardController?.hide()
+                                    showPasswordDialog.value = false
+                                    cancelAction()
+                                },
+                            ) {
+                                Text(
+                                    text = stringResource(R.string.cancel),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            TextButton(
+                                onClick = {
+                                    keyboardController?.hide()
+                                    showPasswordDialog.value = false
+                                    password.value = password.value.trim()
+                                    if (!(emptyOk && password.value.isEmpty()) && !Account.checkAuthPass(password.value)) {
+                                        Toast.makeText(
+                                            ctx,
+                                            String.format(
+                                                ctx.getString(R.string.invalid_authentication_password),
+                                                password.value
+                                            ),
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                        password.value = ""
+                                    }
+                                    okAction()
+                                },
+                            ) {
+                                Text(
+                                    text = stringResource(R.string.ok),
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

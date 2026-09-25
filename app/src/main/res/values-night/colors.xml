@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="colorPrimary">#84C1E6</color>
+    <color name="colorWhite">#ffffff</color>
+    <color name="colorTrafficGreen">#2E7D32</color>
+    <color name="colorTrafficYellow">#F9A825</color>
+    <color name="colorTrafficRed">#C62828</color>
+</resources>

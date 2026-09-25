@@ -1,0 +1,233 @@
+diff --git a/modules/opensles/player.c b/modules/opensles/player.c
+index bd0c3a53..357a2c0b 100644
+--- a/modules/opensles/player.c
++++ b/modules/opensles/player.c
+@@ -8,10 +8,11 @@
+ #include <baresip.h>
+ #include <SLES/OpenSLES.h>
+ #include "SLES/OpenSLES_Android.h"
++#include "SLES/OpenSLES_AndroidConfiguration.h"
+ #include "opensles.h"
+ 
+ 
+-#define N_PLAY_QUEUE_BUFFERS 2
++#define N_PLAY_QUEUE_BUFFERS 4
+ #define PTIME 10
+ 
+ 
+@@ -88,7 +89,8 @@ static int createOutput(struct auplay_st *st)
+ static int createPlayer(struct auplay_st *st, struct auplay_prm *prm)
+ {
+ 	SLDataLocator_AndroidSimpleBufferQueue loc_bufq = {
+-		SL_DATALOCATOR_ANDROIDSIMPLEBUFFERQUEUE, 2
++		SL_DATALOCATOR_ANDROIDSIMPLEBUFFERQUEUE,
++		N_PLAY_QUEUE_BUFFERS
+ 	};
+ 	uint32_t ch_mask = prm->ch == 2
+ 		? SL_SPEAKER_FRONT_LEFT | SL_SPEAKER_FRONT_RIGHT
+@@ -104,8 +106,18 @@ static int createPlayer(struct auplay_st *st, struct auplay_prm *prm)
+ 		SL_DATALOCATOR_OUTPUTMIX, st->outputMixObject
+ 	};
+ 	SLDataSink audioSnk = {&loc_outmix, NULL};
+-	const SLInterfaceID ids[2] = {SL_IID_BUFFERQUEUE, SL_IID_EFFECTSEND};
+-	const SLboolean req[2] = {SL_BOOLEAN_TRUE, SL_BOOLEAN_TRUE};
++	const SLInterfaceID ids[3] = {
++		SL_IID_BUFFERQUEUE,
++		SL_IID_EFFECTSEND,
++		SL_IID_ANDROIDCONFIGURATION
++	};
++	const SLboolean req[3] = {
++		SL_BOOLEAN_TRUE,
++		SL_BOOLEAN_TRUE,
++		SL_BOOLEAN_TRUE
++	};
++	SLAndroidConfigurationItf config;
++	SLint32 stream_type = SL_ANDROID_STREAM_VOICE;
+ 	SLresult r;
+ 
+ 	r = (*engineEngine)->CreateAudioPlayer(engineEngine,
+@@ -117,6 +129,24 @@ static int createPlayer(struct auplay_st *st, struct auplay_prm *prm)
+ 		return ENODEV;
+ 	}
+ 
++	/*
++	 * OpenSL ES otherwise defaults to Android's media stream.  Voice calls
++	 * then use the media volume curve and may be much quieter than the
++	 * system call volume selected by Telecom.
++	 */
++	r = (*st->bqPlayerObject)->GetInterface(st->bqPlayerObject,
++					       SL_IID_ANDROIDCONFIGURATION,
++					       &config);
++	if (SL_RESULT_SUCCESS != r)
++		return ENODEV;
++
++	r = (*config)->SetConfiguration(config, SL_ANDROID_KEY_STREAM_TYPE,
++					&stream_type, sizeof(stream_type));
++	if (SL_RESULT_SUCCESS != r) {
++		warning("opensles: failed to select voice stream: r = %d\n", r);
++		return ENODEV;
++	}
++
+ 	r = (*st->bqPlayerObject)->Realize(st->bqPlayerObject,
+ 					   SL_BOOLEAN_FALSE);
+ 	if (SL_RESULT_SUCCESS != r)
+@@ -139,12 +169,36 @@ static int createPlayer(struct auplay_st *st, struct auplay_prm *prm)
+ 	if (SL_RESULT_SUCCESS != r)
+ 		return ENODEV;
+ 
++	return 0;
++}
++
++
++static int startPlayer(struct auplay_st *st)
++{
++	SLresult r;
++
++	/*
++	 * Prime the complete queue before starting playback.  The previous
++	 * one-buffer start left only 10 ms of scheduling headroom and caused
++	 * audible underruns on busy Android devices.
++	 */
++	for (int i = 0; i < N_PLAY_QUEUE_BUFFERS; ++i) {
++		struct auframe af;
++
++		auframe_init(&af, AUFMT_S16LE, st->sampv[i], st->sampc,
++			     st->prm.srate, st->prm.ch);
++		st->wh(&af, st->arg);
++
++		r = (*st->BufferQueue)->Enqueue(st->BufferQueue, st->sampv[i],
++						(unsigned int)(st->sampc * 2));
++		if (SL_RESULT_SUCCESS != r)
++			return ENODEV;
++	}
++	st->bufferId = 0;
++
+ 	r = (*st->bqPlayerPlay)->SetPlayState(st->bqPlayerPlay,
+ 					      SL_PLAYSTATE_PLAYING);
+-	if (SL_RESULT_SUCCESS != r)
+-		return ENODEV;
+-
+-	return 0;
++	return SL_RESULT_SUCCESS == r ? 0 : ENODEV;
+ }
+ 
+ 
+@@ -195,8 +249,9 @@ int opensles_player_alloc(struct auplay_st **stp, const struct auplay *ap,
+ 	if (err)
+ 		goto out;
+ 
+-	/* kick-start the buffer callback */
+-	bqPlayerCallback(st->BufferQueue, st);
++	err = startPlayer(st);
++	if (err)
++		goto out;
+ 
+  out:
+ 	if (err)
+diff --git a/modules/opensles/recorder.c b/modules/opensles/recorder.c
+index c70de050..8d59495e 100644
+--- a/modules/opensles/recorder.c
++++ b/modules/opensles/recorder.c
+@@ -9,10 +9,11 @@
+ #include <string.h>
+ #include <SLES/OpenSLES.h>
+ #include "SLES/OpenSLES_Android.h"
++#include "SLES/OpenSLES_AndroidConfiguration.h"
+ #include "opensles.h"
+ 
+ 
+-#define N_REC_QUEUE_BUFFERS 2
++#define N_REC_QUEUE_BUFFERS 4
+ #define PTIME 10
+ 
+ 
+@@ -63,13 +64,13 @@ static void bqRecorderCallback(SLAndroidSimpleBufferQueueItf bq, void *context)
+ 
+ 	st->rh(&af, st->arg);
+ 
+-	st->bufferId = ( st->bufferId + 1 ) % N_REC_QUEUE_BUFFERS;
+-
+ 	memset(st->sampv[st->bufferId], 0, st->sampc * 2);
+ 
+ 	(*st->recBufferQueue)->Enqueue(st->recBufferQueue,
+ 				       st->sampv[st->bufferId],
+ 				       (unsigned int)(st->sampc * 2));
++
++	st->bufferId = (st->bufferId + 1) % N_REC_QUEUE_BUFFERS;
+ }
+ 
+ 
+@@ -82,7 +83,8 @@ static int createAudioRecorder(struct ausrc_st *st, struct ausrc_prm *prm)
+ 	SLDataSource audioSrc = {&loc_dev, NULL};
+ 
+ 	SLDataLocator_AndroidSimpleBufferQueue loc_bq = {
+-		SL_DATALOCATOR_ANDROIDSIMPLEBUFFERQUEUE, 2
++		SL_DATALOCATOR_ANDROIDSIMPLEBUFFERQUEUE,
++		N_REC_QUEUE_BUFFERS
+ 	};
+ 	int speakers = prm->ch > 1
+ 		? SL_SPEAKER_FRONT_LEFT | SL_SPEAKER_FRONT_RIGHT
+@@ -94,19 +96,40 @@ static int createAudioRecorder(struct ausrc_st *st, struct ausrc_prm *prm)
+ 				       speakers,
+ 				       SL_BYTEORDER_LITTLEENDIAN};
+ 	SLDataSink audioSnk = {&loc_bq, &format_pcm};
+-	const SLInterfaceID id[1] = {SL_IID_ANDROIDSIMPLEBUFFERQUEUE};
+-	const SLboolean req[1] = {SL_BOOLEAN_TRUE};
++	const SLInterfaceID id[2] = {
++		SL_IID_ANDROIDSIMPLEBUFFERQUEUE,
++		SL_IID_ANDROIDCONFIGURATION
++	};
++	const SLboolean req[2] = {SL_BOOLEAN_TRUE, SL_BOOLEAN_TRUE};
++	SLAndroidConfigurationItf config;
++	SLuint32 preset = SL_ANDROID_RECORDING_PRESET_VOICE_COMMUNICATION;
+ 	SLresult r;
+ 
+ 	r = (*engineEngine)->CreateAudioRecorder(engineEngine,
+ 						 &st->recObject,
+ 						 &audioSrc,
+-						 &audioSnk, 1, id, req);
++						 &audioSnk,
++						 RE_ARRAY_SIZE(id), id, req);
+ 	if (SL_RESULT_SUCCESS != r) {
+ 		warning("opensles: CreateAudioRecorder failed: r = %d\n", r);
+ 		return ENODEV;
+ 	}
+ 
++	r = (*st->recObject)->GetInterface(st->recObject,
++					  SL_IID_ANDROIDCONFIGURATION,
++					  &config);
++	if (SL_RESULT_SUCCESS != r)
++		return ENODEV;
++
++	r = (*config)->SetConfiguration(config,
++					SL_ANDROID_KEY_RECORDING_PRESET,
++					&preset, sizeof(preset));
++	if (SL_RESULT_SUCCESS != r) {
++		warning("opensles: failed to select voice recording preset: "
++			"r = %d\n", r);
++		return ENODEV;
++	}
++
+ 	r = (*st->recObject)->Realize(st->recObject, SL_BOOLEAN_FALSE);
+ 	if (SL_RESULT_SUCCESS != r)
+ 		return ENODEV;
+@@ -141,11 +164,14 @@ static int startRecording(struct ausrc_st *st)
+ 	(*st->recBufferQueue)->Clear(st->recBufferQueue);
+ 
+ 	st->bufferId = 0;
+-	r = (*st->recBufferQueue)->Enqueue(st->recBufferQueue,
+-					   st->sampv[st->bufferId],
+-					   (unsigned int)(st->sampc * 2));
+-	if (SL_RESULT_SUCCESS != r)
+-		return ENODEV;
++	for (int i = 0; i < N_REC_QUEUE_BUFFERS; ++i) {
++		memset(st->sampv[i], 0, st->sampc * 2);
++		r = (*st->recBufferQueue)->Enqueue(st->recBufferQueue,
++						   st->sampv[i],
++						   (unsigned int)(st->sampc * 2));
++		if (SL_RESULT_SUCCESS != r)
++			return ENODEV;
++	}
+ 
+ 	r = (*st->recRecord)->SetRecordState(st->recRecord,
+ 					     SL_RECORDSTATE_RECORDING);

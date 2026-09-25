@@ -1,0 +1,11 @@
+HI-RO Connect Privacy Policy
+
+Last updated: September 25, 2026
+
+HI-RO Connect does not contain advertising, analytics SDKs, or third-party push notification services. Account settings, contacts selected by the user, call history, messages, and diagnostic data are stored on the Android device.
+
+The app exchanges SIP signaling, messages, and call media only with servers configured by the user or the organization operating HI-RO Phone Gateway. The operator of that infrastructure may process and retain communications under its own policy.
+
+If Android contacts integration is enabled, HI-RO Connect reads contacts to resolve names and phone numbers. It does not upload the address book to an unrelated third party.
+
+Uninstalling the app removes its private on-device data. Files explicitly exported or backed up by the user remain in the selected destination.

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="about_title">Σχετικά για το baresip</string>
+    <string name="account">Λογαριασμός</string>
+    <string name="display_name">Εμφανιζόμενο όνομα</string>
+    <string name="display_name_help">Ονομασία (εάν υπάρχει) που χρησιμοποιείται στο URI εξερχόμενων αιτήσεων.</string>
+    <string name="sip_uri_of_proxy_server">SIP URI του διακομιστή μεσολάβησης</string>
+    <string name="sip_uri_of_another_proxy_server">SIP URI του άλλου διακομιστή μεσολάβησης</string>
+    <string name="register">Εγγραφή</string>
+</resources>
