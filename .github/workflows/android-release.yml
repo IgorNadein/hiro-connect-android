@@ -41,6 +41,8 @@ jobs:
           "$SDKMANAGER" 'platforms;android-36' 'build-tools;36.0.0' 'ndk;27.1.12297006' 'cmake;3.22.1'
           sudo apt-get update
           sudo apt-get install -y autoconf automake libtool m4 pkg-config
+          sudo ln -sf "$ANDROID_HOME/cmake/3.22.1/bin/cmake" /usr/bin/cmake
+          sudo ln -sf "$ANDROID_HOME/cmake/3.22.1/bin/ninja" /usr/bin/ninja
       - name: Build patched baresip libraries
         run: |
           make -C libbaresip-android download-sources
