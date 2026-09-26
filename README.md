@@ -43,7 +43,7 @@ HI-RO Connect — клиент менеджера. SIM-карта и Bluetooth H
 Требования:
 
 - Android Studio или JDK 21;
-- Android SDK 37;
+- Android SDK 36;
 - Android NDK `27.1.12297006`;
 - CMake 3.22.1;
 - Linux-пакеты `wget cmake make libtool m4 automake pkg-config unzip`.
