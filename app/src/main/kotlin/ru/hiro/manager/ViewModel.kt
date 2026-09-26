@@ -139,8 +139,8 @@ class ViewModel: ViewModel() {
         _isSpeakerOn.value = on
     }
 
-    fun toggleDialpadVisibility() {
-        _isDialpadVisible.value = !_isDialpadVisible.value
+    fun setDialpadVisibility(visible: Boolean) {
+        _isDialpadVisible.value = visible
     }
 
     fun requestShowKeyboard() {

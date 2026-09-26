@@ -46,7 +46,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -91,6 +91,8 @@ import androidx.compose.material.icons.outlined.RestartAlt
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Upload
 import androidx.compose.material3.BasicAlertDialog
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.ButtonColors
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -144,6 +146,8 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.stringResource
@@ -490,6 +494,8 @@ private fun MainScreen(
         }
     }
 
+    val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
+
     Scaffold(
         modifier = Modifier.fillMaxSize().imePadding(),
         containerColor = MaterialTheme.colorScheme.background,
@@ -509,7 +515,9 @@ private fun MainScreen(
                 )
             }
         },
-        bottomBar = { BottomBar(ctx, viewModel, navController) },
+        bottomBar = {
+            if (!imeVisible) BottomBar(ctx, viewModel, navController)
+        },
         content = { contentPadding -> MainContent(navController, viewModel, contentPadding) }
     )
 }
@@ -773,21 +781,14 @@ private fun BottomBar(ctx: Context, viewModel: ViewModel, navController: NavCont
         if (aor.isNotEmpty()) Account.ofAor(aor)?.missedCalls ?: false else false
     }
 
-    val isDialpadVisible by viewModel.isDialpadVisible.collectAsState()
-
     val voicemailLabel = stringResource(R.string.voicemail_uri)
     val contactsLabel = stringResource(R.string.contacts)
     val chatsLabel = stringResource(R.string.chats)
     val historyLabel = stringResource(R.string.call_history)
-    val dialpadLabel = stringResource(R.string.numeric_keypad)
 
     NavigationBar(
-        modifier = Modifier
-            .fillMaxWidth()
-            .navigationBarsPadding()
-            .padding(horizontal = 8.dp),
-        containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
-        tonalElevation = 0.dp
+        modifier = Modifier.fillMaxWidth(),
+        containerColor = MaterialTheme.colorScheme.surfaceContainer
     ) {
             if (showVmIcon) {
                 NavigationBarItem(
@@ -821,14 +822,9 @@ private fun BottomBar(ctx: Context, viewModel: ViewModel, navController: NavCont
                         }
                     },
                     icon = {
-                        Icon(
-                            Icons.Filled.Voicemail,
-                            contentDescription = voicemailLabel,
-                            tint = if (hasNewVoicemail)
-                                MaterialTheme.colorScheme.error
-                            else
-                                MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        BadgedBox(badge = { if (hasNewVoicemail) Badge() }) {
+                            Icon(Icons.Filled.Voicemail, contentDescription = voicemailLabel)
+                        }
                     },
                     label = { Text(voicemailLabel, maxLines = 1) }
                 )
@@ -854,41 +850,23 @@ private fun BottomBar(ctx: Context, viewModel: ViewModel, navController: NavCont
                         navController.navigate("chats/$aor")
                 },
                 icon = {
-                    Icon(
-                        Icons.AutoMirrored.Filled.Chat,
-                        contentDescription = chatsLabel,
-                        tint = if (hasUnreadMessages)
-                            MaterialTheme.colorScheme.error
-                        else
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    BadgedBox(badge = { if (hasUnreadMessages) Badge() }) {
+                        Icon(Icons.AutoMirrored.Filled.Chat, contentDescription = chatsLabel)
+                    }
                 },
                 label = { Text(stringResource(R.string.messages_short), maxLines = 1) }
             )
 
             NavigationBarItem(
                 enabled = aor.isNotEmpty(),
-                selected = false,
+                selected = true,
                 onClick = { navController.navigate("calls/$aor") },
                 icon = {
-                    Icon(
-                        Icons.Filled.History,
-                        contentDescription = historyLabel,
-                        tint = if (hasMissedCalls)
-                            MaterialTheme.colorScheme.error
-                        else
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    BadgedBox(badge = { if (hasMissedCalls) Badge() }) {
+                        Icon(Icons.Filled.History, contentDescription = historyLabel)
+                    }
                 },
                 label = { Text(stringResource(R.string.calls_short), maxLines = 1) }
-            )
-
-            NavigationBarItem(
-                selected = isDialpadVisible,
-                onClick = { viewModel.toggleDialpadVisibility() },
-                enabled = dialpadButtonEnabled.value,
-                icon = { Icon(Icons.Filled.Dialpad, contentDescription = dialpadLabel) },
-                label = { Text(stringResource(R.string.dialpad_short), maxLines = 1) }
             )
     }
 }
@@ -1487,8 +1465,11 @@ private fun CallUriRow(
 
     var filteredSuggestions by remember { mutableStateOf<List<Triple<Contact, AnnotatedString, Contact.ContactUri?>>>(emptyList()) }
     val focusRequester = remember { FocusRequester() }
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
     val lazyListState = rememberLazyListState()
     val isDialpadVisible by viewModel.isDialpadVisible.collectAsState()
+    val dialpadLabel = stringResource(R.string.numeric_keypad)
 
     Row(
         modifier = Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 8.dp),
@@ -1543,28 +1524,68 @@ private fun CallUriRow(
                         }
                 },
                 trailingIcon = {
-                    if (isDialer && dialerState.callUriEnabled.value && dialerState.callUri.value.isNotEmpty())
-                        Icon(Icons.Outlined.Clear,
-                            contentDescription = null,
-                            modifier = Modifier.clickable {
-                                if (dialerState.showSuggestions.value)
-                                    dialerState.showSuggestions.value = false
-                                dialerState.callUri.value = ""
-                                dialerState.showCallButton.value = true
-                                dialerState.showCallConferenceButton.value = true
-                            },
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                    if (isDialer) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (dialerState.callUriEnabled.value && dialerState.callUri.value.isNotEmpty()) {
+                                IconButton(onClick = {
+                                    if (dialerState.showSuggestions.value)
+                                        dialerState.showSuggestions.value = false
+                                    dialerState.callUri.value = ""
+                                    dialerState.showCallButton.value = true
+                                    dialerState.showCallConferenceButton.value = true
+                                }) {
+                                    Icon(
+                                        Icons.Outlined.Clear,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                            IconButton(
+                                onClick = {
+                                    if (isDialpadVisible) {
+                                        viewModel.setDialpadVisibility(false)
+                                        keyboardController?.hide()
+                                        focusManager.clearFocus()
+                                    } else {
+                                        viewModel.setDialpadVisibility(true)
+                                        focusRequester.requestFocus()
+                                        keyboardController?.show()
+                                    }
+                                },
+                                enabled = dialpadButtonEnabled.value,
+                                modifier = Modifier
+                                    .padding(end = 4.dp)
+                                    .size(40.dp)
+                                    .background(
+                                        color = if (isDialpadVisible)
+                                            MaterialTheme.colorScheme.secondaryContainer
+                                        else
+                                            Color.Transparent,
+                                        shape = CircleShape
+                                    )
+                            ) {
+                                Icon(
+                                    Icons.Filled.Dialpad,
+                                    contentDescription = dialpadLabel,
+                                    tint = if (isDialpadVisible)
+                                        MaterialTheme.colorScheme.onSecondaryContainer
+                                    else
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
                 },
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(start = 4.dp, end = 4.dp, top = 12.dp, bottom = 2.dp)
                     .focusRequester(focusRequester)
-                    .onFocusChanged {
+                    .onFocusChanged { focusState ->
                         if (isDialer) {
                             val account = Account.ofAor(viewModel.selectedAor.value)
-                            if (account != null && account.numericKeypad)
-                                if (!isDialpadVisible) viewModel.toggleDialpadVisibility()
+                            if (focusState.isFocused && account != null && account.numericKeypad)
+                                viewModel.setDialpadVisibility(true)
                         }
                     },
                 label = {
