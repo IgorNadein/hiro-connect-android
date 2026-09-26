@@ -180,8 +180,10 @@ class MainActivity : ComponentActivity() {
 
         atStartup = intent.hasExtra("onStartup")
 
-        when (intent?.action) {
-            ACTION_DIAL, ACTION_CALL, ACTION_VIEW ->
+        val handledOIDCRedirect = handleHiroOIDCRedirect(intent)
+        when {
+            handledOIDCRedirect -> Unit
+            intent?.action in listOf(ACTION_DIAL, ACTION_CALL, ACTION_VIEW) ->
                 if (BaresipService.isServiceRunning)
                     callAction(
                         this,
@@ -245,6 +247,11 @@ class MainActivity : ComponentActivity() {
         setContent {
 
             AppTheme {
+                LaunchedEffect(authViewModel) {
+                    authViewModel.browserRequests.collect { url ->
+                        startActivity(Intent(ACTION_VIEW, Uri.parse(url)))
+                    }
+                }
                 val authState by authViewModel.state.collectAsStateWithLifecycle()
                 when (val state = authState) {
                     HiroAuthState.Checking -> HiroAuthLoadingScreen()
@@ -252,13 +259,15 @@ class MainActivity : ComponentActivity() {
                         serverUrl = state.serverUrl,
                         error = state.error,
                         signingIn = false,
-                        onSignIn = authViewModel::signIn
+                        onSignIn = authViewModel::signIn,
+                        onOIDCSignIn = authViewModel::signInWithOIDC
                     )
                     is HiroAuthState.SigningIn -> HiroLoginScreen(
                         serverUrl = state.serverUrl,
                         error = null,
                         signingIn = true,
-                        onSignIn = authViewModel::signIn
+                        onSignIn = authViewModel::signIn,
+                        onOIDCSignIn = authViewModel::signInWithOIDC
                     )
                     is HiroAuthState.SignedIn -> {
                         navController = rememberNavController()
@@ -392,6 +401,7 @@ class MainActivity : ComponentActivity() {
         Log.d(TAG, "onNewIntent action/type/data: ${intent.action}/${intent.type}/${intent.data}")
 
         when {
+            handleHiroOIDCRedirect(intent) -> Unit
             isCallLogIntent(intent) -> handleCallLogIntent()
             intent.action in listOf(ACTION_DIAL, ACTION_CALL, ACTION_VIEW) ->
                 callAction(
@@ -408,6 +418,17 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    private fun handleHiroOIDCRedirect(intent: Intent?): Boolean {
+        val data = intent?.data ?: return false
+        if (intent.action != ACTION_VIEW || data.scheme != "ru.hiro.manager" || data.path != "/oauth2redirect") {
+            return false
+        }
+        val ticket = data.getQueryParameter("ticket")
+        if (!ticket.isNullOrBlank()) authViewModel.finishOIDC(ticket)
+        intent.data = null
+        return true
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {

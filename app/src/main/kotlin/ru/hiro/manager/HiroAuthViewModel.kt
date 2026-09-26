@@ -9,7 +9,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -28,6 +31,8 @@ class HiroAuthViewModel(application: Application) : AndroidViewModel(application
     private val client = HiroServerClient()
     private val _state = MutableStateFlow<HiroAuthState>(HiroAuthState.Checking)
     val state: StateFlow<HiroAuthState> = _state.asStateFlow()
+    private val _browserRequests = MutableSharedFlow<String>(extraBufferCapacity = 1)
+    val browserRequests: SharedFlow<String> = _browserRequests.asSharedFlow()
     private var refreshJob: Job? = null
 
     init {
@@ -53,6 +58,48 @@ class HiroAuthViewModel(application: Application) : AndroidViewModel(application
                 _state.value = HiroAuthState.SignedOut(serverUrl, error.userMessage)
             } catch (_: Exception) {
                 _state.value = HiroAuthState.SignedOut(serverUrl, "Не удалось сохранить защищённую сессию")
+            }
+        }
+    }
+
+    fun signInWithOIDC(serverUrl: String) {
+        if (_state.value is HiroAuthState.SigningIn) return
+        refreshJob?.cancel()
+        _state.value = HiroAuthState.SigningIn(serverUrl)
+        viewModelScope.launch {
+            try {
+                val pending = withContext(Dispatchers.IO) { client.prepareOIDC(serverUrl) }
+                withContext(Dispatchers.IO) { store.savePendingOIDC(pending) }
+                _browserRequests.emit(pending.startUrl)
+                // The external browser may be cancelled, so keep the login screen retryable.
+                _state.value = HiroAuthState.SignedOut(pending.serverUrl)
+            } catch (error: HiroServerException) {
+                _state.value = HiroAuthState.SignedOut(serverUrl, error.userMessage)
+            } catch (_: Exception) {
+                _state.value = HiroAuthState.SignedOut(serverUrl, "Не удалось начать защищённый вход")
+            }
+        }
+    }
+
+    fun finishOIDC(ticket: String) {
+        if (ticket.isBlank()) return
+        viewModelScope.launch {
+            val pending = withContext(Dispatchers.IO) { store.loadPendingOIDC() }
+            if (pending == null) {
+                _state.value = HiroAuthState.SignedOut(defaultServerUrl(), "Вход устарел. Начните его заново")
+                return@launch
+            }
+            _state.value = HiroAuthState.SigningIn(pending.serverUrl)
+            try {
+                val session = withContext(Dispatchers.IO) { client.redeemOIDC(pending, ticket) }
+                withContext(Dispatchers.IO) { store.clearPendingOIDC() }
+                persistAndSignIn(session)
+            } catch (error: HiroServerException) {
+                withContext(Dispatchers.IO) { store.clearPendingOIDC() }
+                _state.value = HiroAuthState.SignedOut(pending.serverUrl, error.userMessage)
+            } catch (_: Exception) {
+                withContext(Dispatchers.IO) { store.clearPendingOIDC() }
+                _state.value = HiroAuthState.SignedOut(pending.serverUrl, "Не удалось завершить защищённый вход")
             }
         }
     }
@@ -158,7 +205,7 @@ class HiroAuthViewModel(application: Application) : AndroidViewModel(application
     }
 
     private fun defaultServerUrl(): String = store.lastServerUrl()
-        ?: if (BuildConfig.DEBUG) "http://127.0.0.1:8788" else "https://"
+        ?: "https://connect.nadein.systems"
 
     companion object {
         private const val REFRESH_EARLY_SECONDS = 60L

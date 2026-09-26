@@ -6,7 +6,10 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class HiroAuthMethod(
     val type: String,
+    val name: String? = null,
     @SerialName("login_endpoint") val loginEndpoint: String? = null,
+    @SerialName("start_endpoint") val startEndpoint: String? = null,
+    @SerialName("ticket_endpoint") val ticketEndpoint: String? = null,
     @SerialName("refresh_endpoint") val refreshEndpoint: String? = null,
     @SerialName("logout_endpoint") val logoutEndpoint: String? = null,
     @SerialName("persistent_session") val persistentSession: Boolean = false
@@ -35,6 +38,12 @@ data class HiroLoginRequest(
 
 @Serializable
 data class HiroRefreshRequest(@SerialName("refresh_token") val refreshToken: String)
+
+@Serializable
+data class HiroOIDCTicketRequest(
+    val ticket: String,
+    @SerialName("code_verifier") val codeVerifier: String
+)
 
 @Serializable
 data class HiroLoginResponse(
@@ -67,4 +76,15 @@ data class HiroSession(
     val refreshEndpointUrl: String,
     val logoutEndpointUrl: String,
     val user: HiroUser
+)
+
+@Serializable
+data class HiroPendingOIDC(
+    val serverUrl: String,
+    val apiBaseUrl: String,
+    val startUrl: String,
+    val ticketEndpointUrl: String,
+    val refreshEndpointUrl: String,
+    val logoutEndpointUrl: String,
+    val codeVerifier: String
 )

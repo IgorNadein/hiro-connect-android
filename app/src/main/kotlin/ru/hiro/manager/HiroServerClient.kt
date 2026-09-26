@@ -6,7 +6,11 @@ import java.io.InputStream
 import java.net.HttpURLConnection
 import java.net.URI
 import java.net.URL
+import java.net.URLEncoder
+import java.security.MessageDigest
+import java.security.SecureRandom
 import java.time.Instant
+import java.util.Base64
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
@@ -67,6 +71,72 @@ class HiroServerClient {
                 body = json.encodeToString(HiroLoginRequest(username.trim(), password, deviceName()))
             )
         )
+        return sessionFromLoginResponse(serverUrl, apiBaseUrl, refreshUrl, logoutUrl, loginResponse)
+    }
+
+    fun prepareOIDC(rawServerUrl: String): HiroPendingOIDC {
+        val serverUrl = normalizeServerUrl(rawServerUrl)
+        val discovery = decode<HiroDiscovery>(request(resolve(serverUrl, "/.well-known/hiro/client")))
+        val method = discovery.authentication.firstOrNull { it.type == "oidc" }
+            ?: throw HiroServerException("oidc_unsupported", "Этот сервер не поддерживает вход через Nadein ID")
+        if (!method.persistentSession) {
+            throw HiroServerException("persistent_session_unsupported", "Сервер не поддерживает постоянные сессии устройств")
+        }
+        val startUrl = resolve(serverUrl, method.startEndpoint
+            ?: throw HiroServerException("missing_oidc_endpoint", "Сервер не сообщил адрес входа через Nadein ID"))
+        val ticketUrl = resolve(serverUrl, method.ticketEndpoint
+            ?: throw HiroServerException("missing_oidc_endpoint", "Сервер не сообщил адрес завершения входа"))
+        val refreshUrl = resolve(serverUrl, method.refreshEndpoint
+            ?: throw HiroServerException("persistent_session_unsupported", "Сервер не сообщил адрес обновления сессии"))
+        val logoutUrl = resolve(serverUrl, method.logoutEndpoint
+            ?: throw HiroServerException("persistent_session_unsupported", "Сервер не сообщил адрес выхода"))
+        val apiBaseUrl = resolve(serverUrl, discovery.apiBase)
+        listOf(startUrl, ticketUrl, refreshUrl, logoutUrl, apiBaseUrl).forEach {
+            requireSameOrigin(serverUrl, it, "Сервер указал небезопасный адрес авторизации")
+        }
+        val verifierBytes = ByteArray(48).also { SecureRandom().nextBytes(it) }
+        val verifier = Base64.getUrlEncoder().withoutPadding().encodeToString(verifierBytes)
+        val challenge = Base64.getUrlEncoder().withoutPadding()
+            .encodeToString(MessageDigest.getInstance("SHA-256").digest(verifier.toByteArray(Charsets.US_ASCII)))
+        val separator = if (startUrl.contains('?')) "&" else "?"
+        val authorizationUrl = startUrl + separator + "client=android&code_challenge=" +
+            URLEncoder.encode(challenge, Charsets.UTF_8.name())
+        return HiroPendingOIDC(
+            serverUrl = serverUrl,
+            apiBaseUrl = apiBaseUrl,
+            startUrl = authorizationUrl,
+            ticketEndpointUrl = ticketUrl,
+            refreshEndpointUrl = refreshUrl,
+            logoutEndpointUrl = logoutUrl,
+            codeVerifier = verifier
+        )
+    }
+
+    fun redeemOIDC(pending: HiroPendingOIDC, ticket: String): HiroSession {
+        requireSameOrigin(pending.serverUrl, pending.ticketEndpointUrl, "Некорректный адрес завершения входа")
+        val response = decode<HiroLoginResponse>(
+            request(
+                pending.ticketEndpointUrl,
+                method = "POST",
+                body = json.encodeToString(HiroOIDCTicketRequest(ticket.trim(), pending.codeVerifier))
+            )
+        )
+        return sessionFromLoginResponse(
+            pending.serverUrl,
+            pending.apiBaseUrl,
+            pending.refreshEndpointUrl,
+            pending.logoutEndpointUrl,
+            response
+        )
+    }
+
+    private fun sessionFromLoginResponse(
+        serverUrl: String,
+        apiBaseUrl: String,
+        refreshUrl: String,
+        logoutUrl: String,
+        loginResponse: HiroLoginResponse
+    ): HiroSession {
         if (!loginResponse.tokenType.equals("Bearer", ignoreCase = true) ||
             loginResponse.accessToken.isBlank() || loginResponse.refreshToken.isBlank() || loginResponse.sessionId.isBlank()
         ) {

@@ -22,7 +22,9 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -48,7 +50,8 @@ fun HiroLoginScreen(
     serverUrl: String,
     error: String?,
     signingIn: Boolean,
-    onSignIn: (String, String, String) -> Unit
+    onSignIn: (String, String, String) -> Unit,
+    onOIDCSignIn: (String) -> Unit
 ) {
     var server by rememberSaveable(serverUrl) { mutableStateOf(serverUrl) }
     var username by rememberSaveable { mutableStateOf("") }
@@ -104,11 +107,27 @@ fun HiroLoginScreen(
                     onValueChange = { server = it },
                     modifier = Modifier.fillMaxWidth(),
                     label = { Text("Адрес сервера") },
-                    placeholder = { Text("https://hiro.example") },
+                    placeholder = { Text("https://connect.example") },
                     singleLine = true,
                     enabled = !signingIn,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Next)
                 )
+                OutlinedButton(
+                    onClick = { onOIDCSignIn(server) },
+                    enabled = !signingIn && server.isNotBlank(),
+                    modifier = Modifier.fillMaxWidth().height(50.dp)
+                ) {
+                    Text("Войти через Nadein ID")
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    HorizontalDivider(Modifier.weight(1f))
+                    Text("или локальная учётная запись", style = MaterialTheme.typography.labelSmall)
+                    HorizontalDivider(Modifier.weight(1f))
+                }
                 OutlinedTextField(
                     value = username,
                     onValueChange = { username = it },
