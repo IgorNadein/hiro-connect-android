@@ -18,7 +18,7 @@ plugins {
 }
 
 configure<ApplicationExtension> {
-    compileSdk = 36
+    compileSdk = 37
     ndkVersion = "27.1.12297006"
     defaultConfig {
         applicationId = "ru.hiro.manager"

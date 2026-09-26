@@ -38,7 +38,7 @@ jobs:
         run: |
           SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
           test -x "$SDKMANAGER"
-          "$SDKMANAGER" 'platforms;android-36' 'build-tools;36.0.0' 'ndk;27.1.12297006' 'cmake;3.22.1'
+          "$SDKMANAGER" 'platforms;android-37.0' 'build-tools;36.0.0' 'ndk;27.1.12297006' 'cmake;3.22.1'
           sudo apt-get update
           sudo apt-get install -y autoconf automake libtool m4 pkg-config
           sudo ln -sf "$ANDROID_HOME/cmake/3.22.1/bin/cmake" /usr/bin/cmake
