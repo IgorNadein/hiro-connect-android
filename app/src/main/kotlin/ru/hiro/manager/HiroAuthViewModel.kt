@@ -205,7 +205,7 @@ class HiroAuthViewModel(application: Application) : AndroidViewModel(application
     }
 
     private fun defaultServerUrl(): String = store.lastServerUrl()
-        ?: "https://connect.nadein.systems"
+        ?: ""
 
     companion object {
         private const val REFRESH_EARLY_SECONDS = 60L

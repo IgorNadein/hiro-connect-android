@@ -117,7 +117,7 @@ fun HiroLoginScreen(
                     enabled = !signingIn && server.isNotBlank(),
                     modifier = Modifier.fillMaxWidth().height(50.dp)
                 ) {
-                    Text("Войти через Nadein ID")
+                    Text("Войти через SSO")
                 }
                 Row(
                     modifier = Modifier.fillMaxWidth(),

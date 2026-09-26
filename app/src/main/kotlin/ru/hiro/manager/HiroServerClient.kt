@@ -78,12 +78,12 @@ class HiroServerClient {
         val serverUrl = normalizeServerUrl(rawServerUrl)
         val discovery = decode<HiroDiscovery>(request(resolve(serverUrl, "/.well-known/hiro/client")))
         val method = discovery.authentication.firstOrNull { it.type == "oidc" }
-            ?: throw HiroServerException("oidc_unsupported", "Этот сервер не поддерживает вход через Nadein ID")
+            ?: throw HiroServerException("oidc_unsupported", "Этот сервер не поддерживает единый вход")
         if (!method.persistentSession) {
             throw HiroServerException("persistent_session_unsupported", "Сервер не поддерживает постоянные сессии устройств")
         }
         val startUrl = resolve(serverUrl, method.startEndpoint
-            ?: throw HiroServerException("missing_oidc_endpoint", "Сервер не сообщил адрес входа через Nadein ID"))
+            ?: throw HiroServerException("missing_oidc_endpoint", "Сервер не сообщил адрес единого входа"))
         val ticketUrl = resolve(serverUrl, method.ticketEndpoint
             ?: throw HiroServerException("missing_oidc_endpoint", "Сервер не сообщил адрес завершения входа"))
         val refreshUrl = resolve(serverUrl, method.refreshEndpoint
