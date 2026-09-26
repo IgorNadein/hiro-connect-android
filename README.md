@@ -53,6 +53,7 @@ HI-RO Connect — клиент менеджера. SIM-карта и Bluetooth H
 ```bash
 git submodule update --init
 make -C libbaresip-android download-sources
+./scripts/pin-native-dependencies.sh
 ./scripts/apply-audio-patch.sh
 make -C libbaresip-android libbaresip ANDROID_TARGET_ARCH=arm64-v8a
 ```
