@@ -20,7 +20,11 @@ import kotlinx.coroutines.withContext
 
 sealed interface HiroAuthState {
     data object Checking : HiroAuthState
-    data class SignedOut(val serverUrl: String, val error: String? = null) : HiroAuthState
+    data class SignedOut(
+        val serverUrl: String,
+        val error: String? = null,
+        val options: HiroLoginOptions? = null
+    ) : HiroAuthState
     data class SigningIn(val serverUrl: String) : HiroAuthState
     data class SignedIn(val session: HiroSession) : HiroAuthState
 }
@@ -48,6 +52,7 @@ class HiroAuthViewModel(application: Application) : AndroidViewModel(application
 
     fun signIn(serverUrl: String, username: String, password: String) {
         if (_state.value is HiroAuthState.SigningIn) return
+        val options = (_state.value as? HiroAuthState.SignedOut)?.options
         refreshJob?.cancel()
         _state.value = HiroAuthState.SigningIn(serverUrl)
         viewModelScope.launch {
@@ -55,29 +60,54 @@ class HiroAuthViewModel(application: Application) : AndroidViewModel(application
                 val session = withContext(Dispatchers.IO) { client.login(serverUrl, username, password) }
                 persistAndSignIn(session)
             } catch (error: HiroServerException) {
+                _state.value = HiroAuthState.SignedOut(serverUrl, error.userMessage, options)
+            } catch (_: Exception) {
+                _state.value = HiroAuthState.SignedOut(serverUrl, "Не удалось сохранить защищённую сессию", options)
+            }
+        }
+    }
+
+    fun selectServer(serverUrl: String) {
+        if (_state.value is HiroAuthState.SigningIn) return
+        refreshJob?.cancel()
+        _state.value = HiroAuthState.SigningIn(serverUrl)
+        viewModelScope.launch {
+            try {
+                val (normalizedUrl, options) = withContext(Dispatchers.IO) { client.loginOptions(serverUrl) }
+                if (options.oidcEnabled && !options.passwordEnabled) {
+                    beginOIDC(normalizedUrl, options)
+                } else {
+                    _state.value = HiroAuthState.SignedOut(normalizedUrl, options = options)
+                }
+            } catch (error: HiroServerException) {
                 _state.value = HiroAuthState.SignedOut(serverUrl, error.userMessage)
             } catch (_: Exception) {
-                _state.value = HiroAuthState.SignedOut(serverUrl, "Не удалось сохранить защищённую сессию")
+                _state.value = HiroAuthState.SignedOut(serverUrl, "Не удалось проверить способы входа")
             }
         }
     }
 
     fun signInWithOIDC(serverUrl: String) {
         if (_state.value is HiroAuthState.SigningIn) return
+        val options = (_state.value as? HiroAuthState.SignedOut)?.options
         refreshJob?.cancel()
         _state.value = HiroAuthState.SigningIn(serverUrl)
         viewModelScope.launch {
-            try {
-                val pending = withContext(Dispatchers.IO) { client.prepareOIDC(serverUrl) }
-                withContext(Dispatchers.IO) { store.savePendingOIDC(pending) }
-                _browserRequests.emit(pending.startUrl)
-                // The external browser may be cancelled, so keep the login screen retryable.
-                _state.value = HiroAuthState.SignedOut(pending.serverUrl)
-            } catch (error: HiroServerException) {
-                _state.value = HiroAuthState.SignedOut(serverUrl, error.userMessage)
-            } catch (_: Exception) {
-                _state.value = HiroAuthState.SignedOut(serverUrl, "Не удалось начать защищённый вход")
-            }
+            beginOIDC(serverUrl, options ?: HiroLoginOptions(passwordEnabled = false, oidcEnabled = true))
+        }
+    }
+
+    private suspend fun beginOIDC(serverUrl: String, options: HiroLoginOptions) {
+        try {
+            val pending = withContext(Dispatchers.IO) { client.prepareOIDC(serverUrl) }
+            withContext(Dispatchers.IO) { store.savePendingOIDC(pending) }
+            _browserRequests.emit(pending.startUrl)
+            // The external browser may be cancelled, so keep the login screen retryable.
+            _state.value = HiroAuthState.SignedOut(pending.serverUrl, options = options)
+        } catch (error: HiroServerException) {
+            _state.value = HiroAuthState.SignedOut(serverUrl, error.userMessage, options)
+        } catch (_: Exception) {
+            _state.value = HiroAuthState.SignedOut(serverUrl, "Не удалось начать защищённый вход", options)
         }
     }
 
@@ -86,7 +116,10 @@ class HiroAuthViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch {
             val pending = withContext(Dispatchers.IO) { store.loadPendingOIDC() }
             if (pending == null) {
-                _state.value = HiroAuthState.SignedOut(defaultServerUrl(), "Вход устарел. Начните его заново")
+                _state.value = HiroAuthState.SignedOut(
+                    defaultServerUrl(), "Вход устарел. Начните его заново",
+                    HiroLoginOptions(passwordEnabled = false, oidcEnabled = true)
+                )
                 return@launch
             }
             _state.value = HiroAuthState.SigningIn(pending.serverUrl)
@@ -96,10 +129,16 @@ class HiroAuthViewModel(application: Application) : AndroidViewModel(application
                 persistAndSignIn(session)
             } catch (error: HiroServerException) {
                 withContext(Dispatchers.IO) { store.clearPendingOIDC() }
-                _state.value = HiroAuthState.SignedOut(pending.serverUrl, error.userMessage)
+                _state.value = HiroAuthState.SignedOut(
+                    pending.serverUrl, error.userMessage,
+                    HiroLoginOptions(passwordEnabled = false, oidcEnabled = true)
+                )
             } catch (_: Exception) {
                 withContext(Dispatchers.IO) { store.clearPendingOIDC() }
-                _state.value = HiroAuthState.SignedOut(pending.serverUrl, "Не удалось завершить защищённый вход")
+                _state.value = HiroAuthState.SignedOut(
+                    pending.serverUrl, "Не удалось завершить защищённый вход",
+                    HiroLoginOptions(passwordEnabled = false, oidcEnabled = true)
+                )
             }
         }
     }

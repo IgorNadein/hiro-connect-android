@@ -259,6 +259,8 @@ class MainActivity : ComponentActivity() {
                         serverUrl = state.serverUrl,
                         error = state.error,
                         signingIn = false,
+                        options = state.options,
+                        onSelectServer = authViewModel::selectServer,
                         onSignIn = authViewModel::signIn,
                         onOIDCSignIn = authViewModel::signInWithOIDC
                     )
@@ -266,6 +268,8 @@ class MainActivity : ComponentActivity() {
                         serverUrl = state.serverUrl,
                         error = null,
                         signingIn = true,
+                        options = null,
+                        onSelectServer = authViewModel::selectServer,
                         onSignIn = authViewModel::signIn,
                         onOIDCSignIn = authViewModel::signInWithOIDC
                     )

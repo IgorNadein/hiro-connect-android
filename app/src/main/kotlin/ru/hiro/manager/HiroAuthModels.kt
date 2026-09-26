@@ -21,6 +21,11 @@ data class HiroDiscovery(
     val authentication: List<HiroAuthMethod>
 )
 
+data class HiroLoginOptions(
+    val passwordEnabled: Boolean,
+    val oidcEnabled: Boolean
+)
+
 @Serializable
 data class HiroUser(
     val id: String,

@@ -21,8 +21,8 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -32,7 +32,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -50,19 +49,24 @@ fun HiroLoginScreen(
     serverUrl: String,
     error: String?,
     signingIn: Boolean,
+    options: HiroLoginOptions?,
+    onSelectServer: (String) -> Unit,
     onSignIn: (String, String, String) -> Unit,
     onOIDCSignIn: (String) -> Unit
 ) {
     var server by rememberSaveable(serverUrl) { mutableStateOf(serverUrl) }
     var username by rememberSaveable { mutableStateOf("") }
     var password by rememberSaveable { mutableStateOf("") }
+    val activeOptions = options.takeIf {
+        server.trim().trimEnd('/') == serverUrl.trim().trimEnd('/')
+    }
 
     LaunchedEffect(error) {
         if (error != null) password = ""
     }
 
-    fun submit() {
-        if (server.isNotBlank() && username.isNotBlank() && password.isNotBlank() && !signingIn) {
+    fun submitPassword() {
+        if (activeOptions?.passwordEnabled == true && username.isNotBlank() && password.isNotBlank() && !signingIn) {
             onSignIn(server, username, password)
         }
     }
@@ -107,66 +111,89 @@ fun HiroLoginScreen(
                     onValueChange = { server = it },
                     modifier = Modifier.fillMaxWidth(),
                     label = { Text("Адрес сервера") },
-                    placeholder = { Text("https://connect.example") },
+                    placeholder = { Text("connect.example") },
                     singleLine = true,
                     enabled = !signingIn,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Next)
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(onDone = {
+                        if (server.isNotBlank() && !signingIn) onSelectServer(server)
+                    })
                 )
-                OutlinedButton(
-                    onClick = { onOIDCSignIn(server) },
-                    enabled = !signingIn && server.isNotBlank(),
-                    modifier = Modifier.fillMaxWidth().height(50.dp)
-                ) {
-                    Text("Войти через SSO")
+
+                if (activeOptions == null) {
+                    Button(
+                        onClick = { onSelectServer(server) },
+                        enabled = !signingIn && server.isNotBlank(),
+                        modifier = Modifier.fillMaxWidth().height(50.dp)
+                    ) {
+                        if (signingIn) {
+                            CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp)
+                        } else {
+                            Text("Продолжить")
+                        }
+                    }
+                } else {
+                    if (activeOptions.oidcEnabled) {
+                        OutlinedButton(
+                            onClick = { onOIDCSignIn(server) },
+                            enabled = !signingIn,
+                            modifier = Modifier.fillMaxWidth().height(50.dp)
+                        ) {
+                            Text("Войти через SSO")
+                        }
+                    }
+                    if (activeOptions.oidcEnabled && activeOptions.passwordEnabled) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            HorizontalDivider(Modifier.weight(1f))
+                            Text("или локальная учётная запись", style = MaterialTheme.typography.labelSmall)
+                            HorizontalDivider(Modifier.weight(1f))
+                        }
+                    }
+                    if (activeOptions.passwordEnabled) {
+                        OutlinedTextField(
+                            value = username,
+                            onValueChange = { username = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text("Логин") },
+                            singleLine = true,
+                            enabled = !signingIn,
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next)
+                        )
+                        OutlinedTextField(
+                            value = password,
+                            onValueChange = { password = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text("Пароль") },
+                            singleLine = true,
+                            enabled = !signingIn,
+                            visualTransformation = PasswordVisualTransformation(),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
+                            keyboardActions = KeyboardActions(onDone = { submitPassword() })
+                        )
+                    }
                 }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    HorizontalDivider(Modifier.weight(1f))
-                    Text("или локальная учётная запись", style = MaterialTheme.typography.labelSmall)
-                    HorizontalDivider(Modifier.weight(1f))
-                }
-                OutlinedTextField(
-                    value = username,
-                    onValueChange = { username = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Логин") },
-                    singleLine = true,
-                    enabled = !signingIn,
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next)
-                )
-                OutlinedTextField(
-                    value = password,
-                    onValueChange = { password = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Пароль") },
-                    singleLine = true,
-                    enabled = !signingIn,
-                    visualTransformation = PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
-                    keyboardActions = KeyboardActions(onDone = { submit() })
-                )
+
                 if (error != null) {
                     Text(error, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                 }
-                Button(
-                    onClick = { submit() },
-                    enabled = !signingIn && server.isNotBlank() && username.isNotBlank() && password.isNotBlank(),
-                    modifier = Modifier.fillMaxWidth().height(50.dp)
-                ) {
-                    if (signingIn) {
-                        CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp)
-                    } else {
+                if (activeOptions?.passwordEnabled == true) {
+                    Button(
+                        onClick = { submitPassword() },
+                        enabled = !signingIn && username.isNotBlank() && password.isNotBlank(),
+                        modifier = Modifier.fillMaxWidth().height(50.dp)
+                    ) {
                         Text("Войти")
                     }
+                    Text(
+                        "Пароль используется только для входа и не сохраняется. Токен сессии защищён Android Keystore.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.labelSmall
+                    )
                 }
-                Text(
-                    "Пароль используется только для входа и не сохраняется. Токен сессии защищён Android Keystore.",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.labelSmall
-                )
             }
         }
     }

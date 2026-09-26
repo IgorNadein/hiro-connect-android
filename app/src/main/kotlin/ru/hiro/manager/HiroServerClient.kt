@@ -24,7 +24,8 @@ class HiroServerClient {
     }
 
     fun normalizeServerUrl(rawValue: String): String {
-        val raw = rawValue.trim().trimEnd('/')
+        val entered = rawValue.trim().trimEnd('/')
+        val raw = if ("://" in entered) entered else "https://$entered"
         val uri = try {
             URI(raw)
         } catch (_: Exception) {
@@ -38,6 +39,19 @@ class HiroServerClient {
             throw HiroServerException("https_required", "Для рабочего сервера требуется HTTPS")
         }
         return URI(scheme, null, uri.host.lowercase(), uri.port, "", null, null).toString().trimEnd('/')
+    }
+
+    fun loginOptions(rawServerUrl: String): Pair<String, HiroLoginOptions> {
+        val serverUrl = normalizeServerUrl(rawServerUrl)
+        val discovery = decode<HiroDiscovery>(request(resolve(serverUrl, "/.well-known/hiro/client")))
+        val options = HiroLoginOptions(
+            passwordEnabled = discovery.authentication.any { it.type == "password" },
+            oidcEnabled = discovery.authentication.any { it.type == "oidc" }
+        )
+        if (!options.passwordEnabled && !options.oidcEnabled) {
+            throw HiroServerException("authentication_unsupported", "Сервер не сообщил поддерживаемый способ входа")
+        }
+        return serverUrl to options
     }
 
     fun login(rawServerUrl: String, username: String, password: String): HiroSession {
