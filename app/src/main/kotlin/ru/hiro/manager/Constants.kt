@@ -5,12 +5,17 @@ const val TAG = "Baresip"
 const val LOW_CHANNEL_ID = "ru.hiro.manager.low"
 const val MEDIUM_CHANNEL_ID = "ru.hiro.manager.medium"
 const val HIGH_CHANNEL_ID = "ru.hiro.manager.high"
+const val HEALTH_CHANNEL_ID = "ru.hiro.manager.health"
 
 const val STATUS_NOTIFICATION_ID = 101
 const val CALL_NOTIFICATION_ID = 102
 const val CALL_MISSED_NOTIFICATION_ID = 103
 const val TRANSFER_NOTIFICATION_ID = 104
 const val MESSAGE_NOTIFICATION_ID = 105
+const val GATEWAY_MESSAGE_NOTIFICATION_ID = 106
+const val HEALTH_NOTIFICATION_ID = 107
+const val GATEWAY_MESSAGE_SYNC_INTERVAL_MILLIS = 10_000L
+const val HEALTH_FAILURE_THRESHOLD = 3
 
 const val STATUS_REQ_CODE = 1
 const val CALL_REQ_CODE = 2
@@ -46,6 +51,3 @@ val mediaEncMap = mapOf(
 )
 
 val mediaNatMap = mapOf("stun" to "STUN", "turn" to "TURN", "ice" to "ICE", "" to "--")
-
-
-

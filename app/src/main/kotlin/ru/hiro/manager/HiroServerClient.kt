@@ -215,6 +215,55 @@ class HiroServerClient {
         )
     }
 
+    fun smsMessages(session: HiroSession, afterId: Long = 0, limit: Int = 500): HiroSmsMessagesResponse {
+        val safeLimit = limit.coerceIn(1, 500)
+        var cursor = afterId.coerceAtLeast(0)
+        val items = mutableListOf<HiroSmsMessage>()
+        while (true) {
+            val endpoint = resolve(session.apiBaseUrl + "/", "sms/messages?after_id=$cursor&limit=$safeLimit")
+            requireSameOrigin(session.serverUrl, endpoint, "Некорректный адрес SMS API")
+            val page = decode<HiroSmsMessagesResponse>(request(endpoint, bearerToken = session.accessToken))
+            items += page.items
+            if (page.items.size < safeLimit || page.nextAfterId <= cursor) {
+                return HiroSmsMessagesResponse(items, page.nextAfterId.coerceAtLeast(cursor))
+            }
+            cursor = page.nextAfterId
+        }
+    }
+
+    fun gatewayStatus(session: HiroSession): HiroGatewayStatus {
+        val endpoint = resolve(session.apiBaseUrl + "/", "status")
+        requireSameOrigin(session.serverUrl, endpoint, "Некорректный адрес API состояния")
+        return decode(request(endpoint, bearerToken = session.accessToken))
+    }
+
+    fun smsOutbox(session: HiroSession): HiroSmsOutboxResponse {
+        val endpoint = resolve(session.apiBaseUrl + "/", "sms/outbox")
+        requireSameOrigin(session.serverUrl, endpoint, "Некорректный адрес SMS API")
+        return decode(request(endpoint, bearerToken = session.accessToken))
+    }
+
+    fun sendSms(
+        session: HiroSession,
+        clientMessageId: String,
+        address: String,
+        text: String,
+        subscriptionId: Long? = null
+    ): HiroSmsSendResponse {
+        val endpoint = resolve(session.apiBaseUrl + "/", "sms/messages")
+        requireSameOrigin(session.serverUrl, endpoint, "Некорректный адрес SMS API")
+        return decode(
+            request(
+                endpoint,
+                method = "POST",
+                body = json.encodeToString(
+                    HiroSmsSendRequest(clientMessageId, address.trim(), text, subscriptionId)
+                ),
+                bearerToken = session.accessToken
+            )
+        )
+    }
+
     private inline fun <reified T> decode(body: String): T = try {
         json.decodeFromString(body)
     } catch (_: Exception) {

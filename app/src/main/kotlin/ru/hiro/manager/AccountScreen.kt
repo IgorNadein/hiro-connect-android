@@ -171,12 +171,7 @@ private fun AccountScreen(
                 Spacer(Modifier.statusBarsPadding())
                 TopAppBar(
                     title = { Text(text = acc.text(), fontWeight = FontWeight.Bold) },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        navigationIconContentColor = MaterialTheme.colorScheme.onPrimary,
-                        titleContentColor = MaterialTheme.colorScheme.onPrimary,
-                        actionIconContentColor = MaterialTheme.colorScheme.onPrimary
-                    ),
+                    colors = hiroTopAppBarColors(),
                     navigationIcon = {
                         IconButton(onClick = onBack) {
                             Icon(

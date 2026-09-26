@@ -348,12 +348,7 @@ private fun TopAppBar(
 ) {
     TopAppBar(
         title = { Text(text = title, fontWeight = FontWeight.Bold) },
-        colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = MaterialTheme.colorScheme.primary,
-            navigationIconContentColor = MaterialTheme.colorScheme.onPrimary,
-            titleContentColor = MaterialTheme.colorScheme.onPrimary,
-            actionIconContentColor = MaterialTheme.colorScheme.onPrimary
-        ),
+        colors = hiroTopAppBarColors(),
         windowInsets = WindowInsets(0, 0, 0, 0),
         navigationIcon = {
             IconButton(onClick = onBack) {

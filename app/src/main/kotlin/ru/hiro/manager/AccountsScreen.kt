@@ -74,11 +74,7 @@ fun AccountsScreen(navController: NavController) {
                 Spacer(Modifier.statusBarsPadding())
                 TopAppBar(
                     title = { Text(text = stringResource(R.string.accounts), fontWeight = FontWeight.Bold) },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        navigationIconContentColor = MaterialTheme.colorScheme.onPrimary,
-                        titleContentColor = MaterialTheme.colorScheme.onPrimary,
-                    ),
+                    colors = hiroTopAppBarColors(),
                     navigationIcon = {
                         IconButton(onClick = { navController.navigateUp() }) {
                             Icon(
@@ -287,4 +283,3 @@ fun NewAccount(navController: NavController) {
         }
     }
 }
-

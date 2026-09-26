@@ -183,6 +183,7 @@ class MainActivity : ComponentActivity() {
         val handledOIDCRedirect = handleHiroOIDCRedirect(intent)
         when {
             handledOIDCRedirect -> Unit
+            handleGatewayMessagesIntent(intent) -> Unit
             intent?.action in listOf(ACTION_DIAL, ACTION_CALL, ACTION_VIEW) ->
                 if (BaresipService.isServiceRunning)
                     callAction(
@@ -293,6 +294,8 @@ class MainActivity : ComponentActivity() {
                                     }
                                     is NavigationCommand.NavigateToChats ->
                                         navController.navigate("chats") { launchSingleTop = true }
+                                    is NavigationCommand.NavigateToGatewayMessages ->
+                                        navController.navigate("gateway-messages") { launchSingleTop = true }
                                     is NavigationCommand.NavigateToHome ->
                                         navController.navigate("main") {
                                             popUpTo("main") { inclusive = true }
@@ -305,7 +308,7 @@ class MainActivity : ComponentActivity() {
                             mainScreenRoute(
                                 navController = navController,
                                 viewModel = viewModel,
-                                serverUser = state.session.user,
+                                serverSession = state.session,
                                 onServerLogout = authViewModel::signOut,
                                 onRequestPermissions = { requestPermissionsLauncher.launch(permissions) },
                                 onRestartApp = { restartApp() },
@@ -328,6 +331,7 @@ class MainActivity : ComponentActivity() {
                             blockingScreenRoute(navController)
                             chatsScreenRoute(navController)
                             chatScreenRoute(navController, viewModel)
+                            gatewayMessagesScreenRoute(navController, state.session)
                         }
                     }
                 }
@@ -340,7 +344,10 @@ class MainActivity : ComponentActivity() {
         super.onStart()
         Log.i(TAG, "Main onStart action/type/data: ${intent.action}/${intent.type}/${intent.data}")
         val action = intent.getStringExtra("action")
-        if (action != null) {
+        if (handleGatewayMessagesIntent(intent)) {
+            intent.removeExtra("action")
+        }
+        else if (action != null) {
             // MainActivity was not visible when call, message, or transfer request came in
             intent.removeExtra("action")
             handleIntent(this, viewModel, intent, action)
@@ -406,6 +413,7 @@ class MainActivity : ComponentActivity() {
 
         when {
             handleHiroOIDCRedirect(intent) -> Unit
+            handleGatewayMessagesIntent(intent) -> Unit
             isCallLogIntent(intent) -> handleCallLogIntent()
             intent.action in listOf(ACTION_DIAL, ACTION_CALL, ACTION_VIEW) ->
                 callAction(
@@ -432,6 +440,13 @@ class MainActivity : ComponentActivity() {
         val ticket = data.getQueryParameter("ticket")
         if (!ticket.isNullOrBlank()) authViewModel.finishOIDC(ticket)
         intent.data = null
+        return true
+    }
+
+    private fun handleGatewayMessagesIntent(intent: Intent?): Boolean {
+        if (intent?.getStringExtra("action") != ACTION_GATEWAY_MESSAGES) return false
+        intent.removeExtra("action")
+        viewModel.navigateToGatewayMessages()
         return true
     }
 
@@ -492,6 +507,10 @@ class MainActivity : ComponentActivity() {
         val intent = pm.getLaunchIntentForPackage(this.packageName)
         this.startActivity(intent)
         exitProcess(0)
+    }
+
+    companion object {
+        const val ACTION_GATEWAY_MESSAGES = "gateway messages"
     }
 
 }

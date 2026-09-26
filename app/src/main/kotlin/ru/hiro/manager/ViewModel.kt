@@ -18,6 +18,7 @@ import kotlinx.coroutines.launch
 sealed class NavigationCommand {
     object NavigateToHome : NavigationCommand()
     object NavigateToChats : NavigationCommand()
+    object NavigateToGatewayMessages : NavigationCommand()
     data class NavigateToCalls(val aor: String) : NavigationCommand()
     data class NavigateToChat(val aor: String, val peerUri: String) : NavigationCommand()
 }
@@ -166,6 +167,12 @@ class ViewModel: ViewModel() {
     fun navigateToChats() {
         viewModelScope.launch {
             _navigationCommand.emit(NavigationCommand.NavigateToChats)
+        }
+    }
+
+    fun navigateToGatewayMessages() {
+        viewModelScope.launch {
+            _navigationCommand.emit(NavigationCommand.NavigateToGatewayMessages)
         }
     }
 

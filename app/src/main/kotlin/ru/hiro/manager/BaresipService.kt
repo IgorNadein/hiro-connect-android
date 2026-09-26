@@ -65,8 +65,6 @@ import android.telephony.SmsManager
 import android.telephony.SubscriptionManager
 import android.telephony.TelephonyCallback
 import android.telephony.TelephonyManager
-import android.view.View
-import android.widget.RemoteViews
 import android.widget.Toast
 import androidx.annotation.Keep
 import androidx.annotation.RequiresApi
@@ -87,7 +85,11 @@ import ru.hiro.manager.Utils.e164Uri
 import ru.hiro.manager.Utils.toCircle
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.io.File
 import java.net.InetAddress
@@ -154,6 +156,10 @@ class BaresipService: Service() {
     private var cleanupRunnable: Runnable? = null
     private var previousMobileServiceState = -1
     private val registrationRetries = mutableMapOf<Long, Int>()
+    private val gatewayMessageScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private var gatewayMessageSyncJob: Job? = null
+    private val healthIssues = linkedMapOf<String, String>()
+    private var gatewaySyncFailures = 0
 
     @SuppressLint("WakelockTimeout")
     override fun onCreate() {
@@ -182,6 +188,7 @@ class BaresipService: Service() {
         nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
         createNotificationChannels()
         snb = NotificationCompat.Builder(this, LOW_CHANNEL_ID)
+        startGatewayMessageSync()
 
         pm = getSystemService(POWER_SERVICE) as PowerManager
 
@@ -983,6 +990,8 @@ class BaresipService: Service() {
     override fun onDestroy() {
         super.onDestroy()
         Log.d(TAG, "onDestroy at Baresip Service")
+        gatewayMessageScope.cancel()
+        nm.cancel(HEALTH_NOTIFICATION_ID)
         cleanService()
         instance = null
         if (isServiceRunning) sendBroadcast(Intent("ru.hiro.manager.Restart"))
@@ -1138,7 +1147,10 @@ class BaresipService: Service() {
                 when (ev[0]) {
 
                     "registering", "unregistering" -> {
-                        if (ev[0] == "unregistering") registrationRetries.remove(uap)
+                        if (ev[0] == "unregistering") {
+                            registrationRetries.remove(uap)
+                            setHealthIssue("sip:$aor", null)
+                        }
                         ua.updateStatus(circleYellow.getValue(colorblind))
                         updateStatusNotification()
                         if (isMainVisible) registrationUpdate.postValue(System.currentTimeMillis())
@@ -1147,6 +1159,7 @@ class BaresipService: Service() {
 
                     "registered" -> {
                         registrationRetries.remove(uap)
+                        setHealthIssue("sip:$aor", null)
                         ua.updateStatus(
                             if (Api.account_regint(ua.account.accp) == 0)
                                 R.drawable.circle_white
@@ -1174,6 +1187,12 @@ class BaresipService: Service() {
                             }
                         }
                         registrationRetries.remove(uap)
+                        if(!ua.account.isMobile && Api.account_regint(ua.account.accp) > 0) {
+                            setHealthIssue(
+                                "sip:$aor",
+                                getString(R.string.health_telephony_unavailable, aor)
+                            )
+                        }
                         ua.updateStatus(
                             if (Api.account_regint(ua.account.accp) == 0)
                                 R.drawable.circle_white
@@ -2019,10 +2038,10 @@ class BaresipService: Service() {
 
     private fun createNotificationChannels() {
         val lowChannel = NotificationChannel(
-            LOW_CHANNEL_ID, "No sound, no vibrate",
+            LOW_CHANNEL_ID, getString(R.string.background_channel_name),
             NotificationManager.IMPORTANCE_LOW
         )
-        lowChannel.description = "Background status notifications"
+        lowChannel.description = getString(R.string.background_channel_description)
         lowChannel.enableVibration(false)
         lowChannel.setShowBadge(false)
         lowChannel.lockscreenVisibility = Notification.VISIBILITY_PUBLIC
@@ -2053,6 +2072,205 @@ class BaresipService: Service() {
         mediumChannel.setShowBadge(true)
         mediumChannel.setSound(Settings.System.DEFAULT_NOTIFICATION_URI, ringAttributes)
         nm.createNotificationChannel(mediumChannel)
+        val healthChannel = NotificationChannel(
+            HEALTH_CHANNEL_ID,
+            getString(R.string.health_channel_name),
+            NotificationManager.IMPORTANCE_DEFAULT
+        )
+        healthChannel.description = getString(R.string.health_channel_description)
+        healthChannel.lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+        healthChannel.enableVibration(true)
+        healthChannel.setShowBadge(true)
+        nm.createNotificationChannel(healthChannel)
+    }
+
+    private fun startGatewayMessageSync() {
+        if (gatewayMessageSyncJob?.isActive == true) return
+        gatewayMessageSyncJob = gatewayMessageScope.launch {
+            val sessionStore = HiroSessionStore(this@BaresipService)
+            val syncStore = GatewayMessageSyncStore(this@BaresipService)
+            val client = HiroServerClient()
+            while (isActive) {
+                try {
+                    var session = sessionStore.load()
+                    if (session != null) {
+                        val gatewayStatus = client.gatewayStatus(session)
+                        replaceHealthIssues("gateway", gatewayConnectionIssues(gatewayStatus))
+                        val lastSeen = syncStore.lastSeenMessageId(session)
+                        var response = try {
+                            client.smsMessages(session, afterId = lastSeen ?: 0L)
+                        } catch (error: HiroServerException) {
+                            if (error.code != "unauthorized") throw error
+                            val newestStored = sessionStore.load()
+                            session = if (newestStored != null && newestStored.accessToken != session.accessToken) {
+                                newestStored
+                            } else {
+                                HiroSessionRefresher.refresh(this@BaresipService, session)
+                            }
+                            client.smsMessages(session, afterId = lastSeen ?: 0L)
+                        }
+                        val newestID = response.items.maxOfOrNull(HiroSmsMessage::id) ?: lastSeen ?: 0L
+                        if (lastSeen != null) {
+                            val newInbound = response.items
+                                .asSequence()
+                                .filter { it.id > lastSeen && it.direction == "inbound" }
+                                .sortedBy(HiroSmsMessage::id)
+                                .toList()
+                            syncStore.addUnread(newInbound.size)
+                            newInbound.forEach(::notifyGatewayMessage)
+                        }
+                        syncStore.saveLastSeenMessageId(session, newestID)
+                        gatewaySyncFailures = 0
+                        replaceHealthIssues("server", emptyList())
+                    } else {
+                        gatewaySyncFailures = 0
+                        replaceHealthIssues("server", emptyList())
+                        replaceHealthIssues("gateway", emptyList())
+                    }
+                } catch (error: Exception) {
+                    Log.d(TAG, "Gateway message sync deferred: ${error.message}")
+                    gatewaySyncFailures += 1
+                    if(gatewaySyncFailures >= HEALTH_FAILURE_THRESHOLD) {
+                        replaceHealthIssues(
+                            "server",
+                            listOf(getString(R.string.health_server_unavailable))
+                        )
+                    }
+                }
+                delay(GATEWAY_MESSAGE_SYNC_INTERVAL_MILLIS)
+            }
+        }
+    }
+
+    private fun gatewayConnectionIssues(status: HiroGatewayStatus): List<String> {
+        val assignments = status.assignments.filter { it.role.equals("gateway", ignoreCase = true) }
+        if(assignments.isEmpty()) {
+            return if(!status.bluetooth.gateway.connected && !status.usb.ready) {
+                listOf(getString(R.string.health_gateway_unavailable))
+            } else emptyList()
+        }
+
+        val connectedBluetooth = status.bluetooth.connected
+            .map { it.address.uppercase() }
+            .toSet()
+        return assignments.flatMap { assignment ->
+            val name = assignment.name.ifBlank { getString(R.string.health_gateway_default_name) }
+            buildList {
+                if(assignment.bluetoothAddress.isNotBlank() &&
+                    (assignment.bluetoothAddress.uppercase() !in connectedBluetooth ||
+                        !status.bluetooth.gateway.connected)
+                ) {
+                    add(getString(R.string.health_gateway_calls_unavailable, name))
+                }
+                if(assignment.adbSerial.isNotBlank() && status.usb.devices.none {
+                        it.serial == assignment.adbSerial && it.state == "device"
+                    }
+                ) {
+                    add(getString(R.string.health_gateway_sms_unavailable, name))
+                }
+            }
+        }.distinct()
+    }
+
+    private fun replaceHealthIssues(source: String, messages: List<String>) {
+        val changed: Boolean
+        val hasIssues: Boolean
+        synchronized(healthIssues) {
+            val before = healthIssues.toMap()
+            healthIssues.keys.filter { it.startsWith("$source:") }.forEach(healthIssues::remove)
+            messages.forEachIndexed { index, message -> healthIssues["$source:$index"] = message }
+            changed = before != healthIssues
+            hasIssues = healthIssues.isNotEmpty()
+        }
+        val notificationMissing = hasIssues && VERSION.SDK_INT >= 23 &&
+            nm.activeNotifications.none { it.id == HEALTH_NOTIFICATION_ID }
+        if(changed || notificationMissing) updateHealthNotification()
+    }
+
+    private fun setHealthIssue(key: String, message: String?) {
+        val changed: Boolean
+        synchronized(healthIssues) {
+            val previous = healthIssues[key]
+            if(message == null) healthIssues.remove(key) else healthIssues[key] = message
+            changed = previous != message
+        }
+        if(changed) updateHealthNotification()
+    }
+
+    private fun updateHealthNotification() {
+        val issues = synchronized(healthIssues) { healthIssues.values.distinct() }
+        if(issues.isEmpty()) {
+            nm.cancel(HEALTH_NOTIFICATION_ID)
+            return
+        }
+        if(VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(
+                this,
+                android.Manifest.permission.POST_NOTIFICATIONS
+            ) != PackageManager.PERMISSION_GRANTED
+        ) return
+
+        val openIntent = PendingIntent.getActivity(
+            this,
+            HEALTH_NOTIFICATION_ID,
+            Intent(this, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            },
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+        val details = issues.joinToString("\n")
+        nm.notify(
+            HEALTH_NOTIFICATION_ID,
+            NotificationCompat.Builder(this, HEALTH_CHANNEL_ID)
+                .setSmallIcon(R.drawable.ic_notification_connect)
+                .setColor(ContextCompat.getColor(this, R.color.colorTrafficRed))
+                .setContentTitle(getString(R.string.health_attention_title))
+                .setContentText(issues.first())
+                .setStyle(NotificationCompat.BigTextStyle().bigText(details))
+                .setContentIntent(openIntent)
+                .setCategory(NotificationCompat.CATEGORY_ERROR)
+                .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+                .setOnlyAlertOnce(true)
+                .setOngoing(true)
+                .build()
+        )
+    }
+
+    private fun notifyGatewayMessage(message: HiroSmsMessage) {
+        if (Utils.isVisible()) return
+        if (VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(
+                this,
+                android.Manifest.permission.POST_NOTIFICATIONS
+            ) != PackageManager.PERMISSION_GRANTED
+        ) return
+
+        val openIntent = Intent(this, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK
+            putExtra("action", MainActivity.ACTION_GATEWAY_MESSAGES)
+        }
+        val requestCode = (GATEWAY_MESSAGE_NOTIFICATION_ID * 100_000L + message.id % 100_000L).toInt()
+        val pendingIntent = PendingIntent.getActivity(
+            this,
+            requestCode,
+            openIntent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+        val address = message.address?.takeIf(String::isNotBlank) ?: "Новое сообщение"
+        val body = message.text?.takeIf(String::isNotBlank) ?: "Получено MMS"
+        val notification = NotificationCompat.Builder(this, MEDIUM_CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_notification_message)
+            .setColor(ContextCompat.getColor(this, R.color.colorPrimary))
+            .setContentTitle(address)
+            .setContentText(body)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+            .setContentIntent(pendingIntent)
+            .setAutoCancel(true)
+            .setCategory(NotificationCompat.CATEGORY_MESSAGE)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
+            .setWhen(message.timestamp ?: System.currentTimeMillis())
+            .build()
+        nm.notify(requestCode, notification)
     }
 
     private fun buildStatusNotification(): Notification {
@@ -2084,15 +2302,15 @@ class BaresipService: Service() {
             deleteIntent,
             PendingIntent.FLAG_IMMUTABLE
         )
-        val notificationLayout = RemoteViews(packageName, R.layout.status_notification)
         snb.setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-            .setSmallIcon(R.drawable.ic_notification_b)
+            .setSmallIcon(R.drawable.ic_notification_connect)
             .setContentIntent(pi)
             .setDeleteIntent(dpi)
             .setOngoing(true)
             .setCategory(Notification.CATEGORY_SERVICE)
-            .setStyle(NotificationCompat.DecoratedCustomViewStyle())
-            .setCustomContentView(notificationLayout)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setContentTitle(getString(R.string.background_service_title))
+            .setContentText(getString(R.string.background_service_description))
         val notification = buildStatusNotification()
         try {
             if (VERSION.SDK_INT >= 29)
@@ -2137,7 +2355,7 @@ class BaresipService: Service() {
             )
 
             builder.setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-                .setSmallIcon(R.drawable.ic_notification_b)
+                .setSmallIcon(R.drawable.ic_notification_connect)
                 .setContentIntent(pi)
                 .setDeleteIntent(dpi)
                 .setOngoing(true)
@@ -2175,36 +2393,13 @@ class BaresipService: Service() {
             }
             else {
                 builder.setStyle(null)
-                builder.setStyle(NotificationCompat.DecoratedCustomViewStyle())
-                    .setCategory(Notification.CATEGORY_SERVICE)
+                builder.setCategory(Notification.CATEGORY_SERVICE)
                     .setPriority(NotificationCompat.PRIORITY_MIN)
                     .setWhen(0)
                     .setShowWhen(false)
                     .setUsesChronometer(false)
-                    .setContentTitle(getString(R.string.app_name))
-                    .setContentText("")
-
-                val notificationLayout = RemoteViews(packageName, R.layout.status_notification)
-                for (i in 0..3) {
-                    val resId = when (i) {
-                        0 -> R.id.status0
-                        1 -> R.id.status1
-                        2 -> R.id.status2
-                        else -> R.id.status3
-                    }
-                    if (i < uas.value.size) {
-                        notificationLayout.setImageViewResource(resId, uas.value[i].status)
-                        notificationLayout.setViewVisibility(resId, View.VISIBLE)
-                    }
-                    else
-                        notificationLayout.setViewVisibility(resId, View.INVISIBLE)
-                }
-                if (uas.value.size > 4)
-                    notificationLayout.setViewVisibility(R.id.etc, View.VISIBLE)
-                else
-                    notificationLayout.setViewVisibility(R.id.etc, View.INVISIBLE)
-
-                builder.setCustomContentView(notificationLayout)
+                    .setContentTitle(getString(R.string.background_service_title))
+                    .setContentText(getString(R.string.background_service_description))
             }
 
             if (VERSION.SDK_INT >= 31)

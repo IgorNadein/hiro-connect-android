@@ -213,7 +213,7 @@ private val showSelectItemDialog = CustomElements.showSelectItemDialog
 fun NavGraphBuilder.mainScreenRoute(
     navController: NavController,
     viewModel: ViewModel,
-    serverUser: HiroUser,
+    serverSession: HiroSession,
     onServerLogout: () -> Unit,
     onRequestPermissions: () -> Unit,
     onRestartApp: () -> Unit,
@@ -223,7 +223,7 @@ fun NavGraphBuilder.mainScreenRoute(
         MainScreen(
             navController = navController,
             viewModel = viewModel,
-            serverUser = serverUser,
+            serverSession = serverSession,
             onServerLogout = onServerLogout,
             onRequestPermissions = onRequestPermissions,
             onRestartClick = onRestartApp,
@@ -236,7 +236,7 @@ fun NavGraphBuilder.mainScreenRoute(
 private fun MainScreen(
     navController: NavController,
     viewModel: ViewModel,
-    serverUser: HiroUser,
+    serverSession: HiroSession,
     onServerLogout: () -> Unit,
     onRequestPermissions: () -> Unit,
     onRestartClick: () -> Unit,
@@ -505,7 +505,7 @@ private fun MainScreen(
                 TopAppBar(
                     viewModel = viewModel,
                     navController = navController,
-                    serverUser = serverUser,
+                    serverUser = serverSession.user,
                     onServerLogout = onServerLogout,
                     onBackupClick = { launchBackupRequest() },
                     onRestoreClick = { launchRestoreRequest() },
@@ -762,6 +762,9 @@ private fun DockedToolbarItem(
 @Composable
 private fun BottomBar(ctx: Context, viewModel: ViewModel, navController: NavController) {
 
+    remember { GatewayMessageSyncStore(ctx) }
+    val gatewayUnreadCount by GatewayMessageSyncStore.unreadCount.collectAsState()
+
     val aor by viewModel.selectedAor.collectAsState()
     val accountUpdate by viewModel.accountUpdate.collectAsState()
 
@@ -832,25 +835,23 @@ private fun BottomBar(ctx: Context, viewModel: ViewModel, navController: NavCont
 
             NavigationBarItem(
                 selected = false,
-                onClick = { navController.navigate("contacts") },
+                onClick = { navController.navigate("contacts") { launchSingleTop = true } },
                 icon = { Icon(Icons.Filled.Person, contentDescription = contactsLabel) },
                 label = { Text(contactsLabel, maxLines = 1) }
             )
 
             NavigationBarItem(
-                enabled = aor.isNotEmpty(),
+                enabled = true,
                 selected = false,
-                onClick = {
-                    if (isMobile && !Utils.isDefaultSmsApp(ctx)) {
-                        alertTitle.value = ctx.getString(R.string.notice)
-                        alertMessage.value = ctx.getString(R.string.enable_default_messaging)
-                        showAlert.value = true
-                    }
-                    else
-                        navController.navigate("chats/$aor")
-                },
+                onClick = { navController.navigate("gateway-messages") { launchSingleTop = true } },
                 icon = {
-                    BadgedBox(badge = { if (hasUnreadMessages) Badge() }) {
+                    BadgedBox(badge = {
+                        if (gatewayUnreadCount > 0) {
+                            Badge { Text(if (gatewayUnreadCount > 99) "99+" else gatewayUnreadCount.toString()) }
+                        } else if (hasUnreadMessages) {
+                            Badge()
+                        }
+                    }) {
                         Icon(Icons.AutoMirrored.Filled.Chat, contentDescription = chatsLabel)
                     }
                 },
@@ -859,8 +860,8 @@ private fun BottomBar(ctx: Context, viewModel: ViewModel, navController: NavCont
 
             NavigationBarItem(
                 enabled = aor.isNotEmpty(),
-                selected = true,
-                onClick = { navController.navigate("calls/$aor") },
+                selected = false,
+                onClick = { navController.navigate("calls/$aor") { launchSingleTop = true } },
                 icon = {
                     BadgedBox(badge = { if (hasMissedCalls) Badge() }) {
                         Icon(Icons.Filled.History, contentDescription = historyLabel)

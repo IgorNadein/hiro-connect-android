@@ -95,11 +95,7 @@ fun BlockingScreen(navController: NavController, viewModel: AccountViewModel, ua
                 Spacer(Modifier.statusBarsPadding())
                 TopAppBar(
                     title = { Text(text = stringResource(R.string.blocking), fontWeight = FontWeight.Bold) },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        navigationIconContentColor = MaterialTheme.colorScheme.onPrimary,
-                        titleContentColor = MaterialTheme.colorScheme.onPrimary,
-                    ),
+                    colors = hiroTopAppBarColors(),
                     navigationIcon = {
                         IconButton(onClick = { navController.navigateUp() }) {
                             Icon(

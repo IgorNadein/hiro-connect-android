@@ -112,12 +112,7 @@ private fun AudioScreen(
                     title = {
                         Text(text = stringResource(R.string.audio_settings), fontWeight = FontWeight.Bold)
                     },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        navigationIconContentColor = MaterialTheme.colorScheme.onPrimary,
-                        titleContentColor = MaterialTheme.colorScheme.onPrimary,
-                        actionIconContentColor = MaterialTheme.colorScheme.onPrimary
-                    ),
+                    colors = hiroTopAppBarColors(),
                     navigationIcon = {
                         IconButton(onClick = onBack) {
                             Icon(

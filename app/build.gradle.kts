@@ -1,5 +1,16 @@
 import com.android.build.api.dsl.ApplicationExtension
 
+val releaseStore = System.getenv("SIGNING_STORE_FILE")
+val releaseStorePassword = System.getenv("SIGNING_STORE_PASSWORD")
+val releaseAlias = System.getenv("SIGNING_KEY_ALIAS")
+val releaseKeyPassword = System.getenv("SIGNING_KEY_PASSWORD")
+val hasReleaseSigning = listOf(
+    releaseStore,
+    releaseStorePassword,
+    releaseAlias,
+    releaseKeyPassword
+).all { !it.isNullOrBlank() }
+
 plugins {
     alias(libs.plugins.compose.compiler)
     alias(libs.plugins.kotlin.serialization)
@@ -13,8 +24,8 @@ configure<ApplicationExtension> {
         applicationId = "ru.hiro.manager"
         minSdk = 28
         targetSdk = 36
-        versionCode = 3
-        versionName = "0.3.0"
+        versionCode = System.getenv("VERSION_CODE")?.toInt() ?: 9
+        versionName = System.getenv("VERSION_NAME") ?: "0.4.5"
         @Suppress("UnstableApiUsage")
         externalNativeBuild {
             cmake {
@@ -28,9 +39,18 @@ configure<ApplicationExtension> {
         }
         vectorDrawables.useSupportLibrary = true
     }
+    signingConfigs {
+        if (hasReleaseSigning) create("githubRelease") {
+            storeFile = file(requireNotNull(releaseStore))
+            storePassword = releaseStorePassword
+            keyAlias = releaseAlias
+            keyPassword = releaseKeyPassword
+        }
+    }
     buildTypes {
         debug { }
         release {
+            if (hasReleaseSigning) signingConfig = signingConfigs.getByName("githubRelease")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(

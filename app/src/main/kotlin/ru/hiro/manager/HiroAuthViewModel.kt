@@ -175,7 +175,9 @@ class HiroAuthViewModel(application: Application) : AndroidViewModel(application
 
     private suspend fun refreshOrRetainOffline(session: HiroSession) {
         try {
-            val refreshed = withContext(Dispatchers.IO) { client.refresh(session) }
+            val refreshed = withContext(Dispatchers.IO) {
+                HiroSessionRefresher.refresh(getApplication(), session)
+            }
             persistAndSignIn(refreshed)
         } catch (error: HiroServerException) {
             if (error.code == "unauthorized") {
@@ -214,7 +216,9 @@ class HiroAuthViewModel(application: Application) : AndroidViewModel(application
             while (isActive) {
                 val current = (_state.value as? HiroAuthState.SignedIn)?.session ?: return@launch
                 try {
-                    val refreshed = withContext(Dispatchers.IO) { client.refresh(current) }
+                    val refreshed = withContext(Dispatchers.IO) {
+                        HiroSessionRefresher.refresh(getApplication(), current)
+                    }
                     withContext(Dispatchers.IO) { store.save(refreshed) }
                     _state.value = HiroAuthState.SignedIn(refreshed)
                     scheduleRefresh(refreshed)

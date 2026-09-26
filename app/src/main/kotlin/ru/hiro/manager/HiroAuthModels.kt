@@ -84,6 +84,114 @@ data class HiroSession(
 )
 
 @Serializable
+data class HiroSmsMessage(
+    val id: Long,
+    @SerialName("platform_id") val platformId: Long? = null,
+    @SerialName("thread_id") val threadId: Long? = null,
+    val address: String? = null,
+    val text: String? = null,
+    val timestamp: Long? = null,
+    @SerialName("sent_at") val sentAt: Long? = null,
+    val read: Boolean? = null,
+    val direction: String? = null,
+    val status: String? = null,
+    @SerialName("status_code") val statusCode: Int? = null,
+    @SerialName("error_code") val errorCode: Int? = null,
+    @SerialName("subscription_id") val subscriptionId: Long? = null,
+    val kind: String = "sms"
+)
+
+@Serializable
+data class HiroSmsMessagesResponse(
+    val items: List<HiroSmsMessage>,
+    @SerialName("next_after_id") val nextAfterId: Long = 0
+)
+
+@Serializable
+data class HiroSmsSendRequest(
+    @SerialName("client_message_id") val clientMessageId: String,
+    val address: String,
+    val text: String,
+    @SerialName("subscription_id") val subscriptionId: Long? = null
+)
+
+@Serializable
+data class HiroSmsSendResponse(
+    @SerialName("client_message_id") val clientMessageId: String,
+    @SerialName("local_message_id") val localMessageId: Long? = null,
+    val status: String,
+    val reason: String? = null,
+    val duplicate: Boolean = false
+)
+
+@Serializable
+data class HiroSmsOutboxMessage(
+    @SerialName("client_message_id") val clientMessageId: String,
+    val address: String,
+    val text: String,
+    @SerialName("subscription_id") val subscriptionId: Long? = null,
+    val status: String,
+    @SerialName("created_at") val createdAt: String,
+    @SerialName("updated_at") val updatedAt: String,
+    val attempts: Int = 0,
+    @SerialName("last_error") val lastError: String? = null,
+    @SerialName("local_message_id") val localMessageId: Long? = null,
+    @SerialName("submitted_at") val submittedAt: String? = null
+)
+
+@Serializable
+data class HiroSmsOutboxResponse(val items: List<HiroSmsOutboxMessage>)
+
+@Serializable
+data class HiroGatewayStatus(
+    val state: String = "idle",
+    val bluetooth: HiroBluetoothStatus = HiroBluetoothStatus(),
+    val usb: HiroUsbStatus = HiroUsbStatus(),
+    val assignments: List<HiroDeviceAssignment> = emptyList()
+)
+
+@Serializable
+data class HiroBluetoothStatus(
+    val connected: List<HiroBluetoothDevice> = emptyList(),
+    val gateway: HiroMobileGateway = HiroMobileGateway()
+)
+
+@Serializable
+data class HiroBluetoothDevice(
+    val address: String = "",
+    val name: String = ""
+)
+
+@Serializable
+data class HiroMobileGateway(
+    val available: Boolean = false,
+    val connected: Boolean = false,
+    val deviceId: String = ""
+)
+
+@Serializable
+data class HiroUsbStatus(
+    val devices: List<HiroAdbDevice> = emptyList(),
+    val ready: Boolean = false
+)
+
+@Serializable
+data class HiroAdbDevice(
+    val serial: String = "",
+    val state: String = "",
+    val model: String = ""
+)
+
+@Serializable
+data class HiroDeviceAssignment(
+    val id: String = "",
+    val name: String = "",
+    val role: String = "",
+    val adbSerial: String = "",
+    val bluetoothAddress: String = ""
+)
+
+@Serializable
 data class HiroPendingOIDC(
     val serverUrl: String,
     val apiBaseUrl: String,
