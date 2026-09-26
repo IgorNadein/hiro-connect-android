@@ -39,6 +39,16 @@ jobs:
           SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
           test -x "$SDKMANAGER"
           "$SDKMANAGER" 'platforms;android-36' 'build-tools;36.0.0' 'ndk;27.1.12297006' 'cmake;3.22.1'
+          sudo apt-get update
+          sudo apt-get install -y autoconf automake libtool m4 pkg-config
+      - name: Build patched baresip libraries
+        run: |
+          make -C libbaresip-android download-sources
+          ./scripts/apply-audio-patch.sh
+          make -C libbaresip-android libbaresip \
+            ANDROID_TARGET_ARCH=arm64-v8a \
+            NDK_PATH="$ANDROID_HOME/ndk/27.1.12297006" \
+            OUTPUT_DIR="$GITHUB_WORKSPACE/distribution"
       - name: Compute release version
         run: |
           python3 - <<'PY'
