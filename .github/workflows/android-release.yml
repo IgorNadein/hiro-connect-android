@@ -46,6 +46,7 @@ jobs:
       - name: Build patched baresip libraries
         run: |
           make -C libbaresip-android download-sources
+          ./scripts/apply-native-build-patch.sh
           ./scripts/pin-native-dependencies.sh
           ./scripts/apply-audio-patch.sh
           make -C libbaresip-android libbaresip \
