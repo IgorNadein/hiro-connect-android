@@ -518,7 +518,9 @@ private fun MainScreen(
         bottomBar = {
             if (!imeVisible) BottomBar(ctx, viewModel, navController)
         },
-        content = { contentPadding -> MainContent(navController, viewModel, contentPadding) }
+        content = { contentPadding ->
+            MainContent(navController, viewModel, contentPadding, serverSession.user.role)
+        }
     )
 }
 
@@ -1120,7 +1122,12 @@ private fun CallCard(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun MainContent(navController: NavController, viewModel: ViewModel, contentPadding: PaddingValues) {
+private fun MainContent(
+    navController: NavController,
+    viewModel: ViewModel,
+    contentPadding: PaddingValues,
+    serverRole: String
+) {
 
     var isRefreshing by remember { mutableStateOf(false) }
     val refreshState = rememberPullToRefreshState()
@@ -1233,7 +1240,7 @@ private fun MainContent(navController: NavController, viewModel: ViewModel, cont
         verticalArrangement = Arrangement.Top,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        AccountSpinner(ctx, viewModel, navController)
+        AccountSpinner(ctx, viewModel, navController, serverRole)
 
         aorCalls.forEach { call ->
             key(call.callp) {
@@ -1288,7 +1295,12 @@ private fun MainContent(navController: NavController, viewModel: ViewModel, cont
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun AccountSpinner(ctx: Context, viewModel: ViewModel, navController: NavController) {
+private fun AccountSpinner(
+    ctx: Context,
+    viewModel: ViewModel,
+    navController: NavController,
+    serverRole: String
+) {
 
     var expanded by rememberSaveable { mutableStateOf(false) }
     val selected: String by viewModel.selectedAor.collectAsState()
@@ -1319,7 +1331,31 @@ private fun AccountSpinner(ctx: Context, viewModel: ViewModel, navController: Na
             shape = RoundedCornerShape(20.dp),
             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
             contentPadding = PaddingValues(horizontal = 10.dp)
-        ) { Text(text = "") }
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.ManageAccounts,
+                contentDescription = null,
+                modifier = Modifier.padding(end = 12.dp)
+            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = if (serverRole == "viewer")
+                        stringResource(R.string.telephony_profile_unavailable)
+                    else
+                        stringResource(R.string.telephony_profile_loading),
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = if (serverRole == "viewer")
+                        stringResource(R.string.telephony_profile_viewer_hint)
+                    else
+                        stringResource(R.string.telephony_profile_loading_hint),
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
     }
     else
         OutlinedButton(

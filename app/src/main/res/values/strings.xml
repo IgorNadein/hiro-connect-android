@@ -6,6 +6,10 @@
     <string name="server_logout">Sign out from server</string>
     <string name="gateway_ready">Ready for calls</string>
     <string name="gateway_connecting">Connecting to gateway</string>
+    <string name="telephony_profile_loading">Setting up calling</string>
+    <string name="telephony_profile_loading_hint">The server is securely provisioning the phone profile</string>
+    <string name="telephony_profile_unavailable">Calling is unavailable</string>
+    <string name="telephony_profile_viewer_hint">Ask the server administrator for the manager role</string>
     <string name="background_channel_name">Background calling</string>
     <string name="background_channel_description">Keeps incoming calls available while the app is closed</string>
     <string name="background_service_title">Calls are active in the background</string>

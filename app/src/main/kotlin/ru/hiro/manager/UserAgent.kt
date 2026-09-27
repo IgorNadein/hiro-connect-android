@@ -67,7 +67,7 @@ class UserAgent(val uap: Long, virtualAccount: Account? = null) {
 
     fun reRegister() {
         if (uap == 0L) return
-        this.status = circleYellow.getValue(colorblind)
+        updateStatus(circleYellow.getValue(colorblind))
         if (this.account.regint == 0)
             Api.ua_unregister(this.uap)
         else
@@ -156,4 +156,3 @@ class UserAgent(val uap: Long, virtualAccount: Account? = null) {
         }
     }
 }
-

@@ -4,6 +4,10 @@
     <string name="server_logout">Выйти с сервера</string>
     <string name="gateway_ready">Готов принимать звонки</string>
     <string name="gateway_connecting">Подключение к шлюзу</string>
+    <string name="telephony_profile_loading">Настраиваем звонки</string>
+    <string name="telephony_profile_loading_hint">Сервер безопасно выдаёт телефонный профиль</string>
+    <string name="telephony_profile_unavailable">Звонки недоступны</string>
+    <string name="telephony_profile_viewer_hint">Администратор сервера должен выдать роль менеджера</string>
     <string name="background_channel_name">Фоновая телефония</string>
     <string name="background_channel_description">Обеспечивает приём звонков, когда приложение закрыто</string>
     <string name="background_service_title">Звонки работают в фоне</string>

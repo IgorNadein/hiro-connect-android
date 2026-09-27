@@ -2094,32 +2094,32 @@ class BaresipService: Service() {
                 try {
                     var session = sessionStore.load()
                     if (session != null) {
-                        val gatewayStatus = client.gatewayStatus(session)
-                        replaceHealthIssues("gateway", gatewayConnectionIssues(gatewayStatus))
-                        val lastSeen = syncStore.lastSeenMessageId(session)
-                        var response = try {
-                            client.smsMessages(session, afterId = lastSeen ?: 0L)
+                        val gatewayStatus = try {
+                            client.gatewayStatus(session)
                         } catch (error: HiroServerException) {
                             if (error.code != "unauthorized") throw error
-                            val newestStored = sessionStore.load()
-                            session = if (newestStored != null && newestStored.accessToken != session.accessToken) {
-                                newestStored
-                            } else {
-                                HiroSessionRefresher.refresh(this@BaresipService, session)
+                            session = HiroSessionRefresher.refresh(this@BaresipService, session)
+                            client.gatewayStatus(session)
+                        }
+                        replaceHealthIssues("gateway", gatewayConnectionIssues(gatewayStatus))
+                        if (session.user.role == "manager" || session.user.role == "admin") {
+                            if (isServiceRunning) {
+                                ManagedTelephonyProfile.ensure(client.telephonyProfile(session))
                             }
-                            client.smsMessages(session, afterId = lastSeen ?: 0L)
+                            val lastSeen = syncStore.lastSeenMessageId(session)
+                            val response = client.smsMessages(session, afterId = lastSeen ?: 0L)
+                            val newestID = response.items.maxOfOrNull(HiroSmsMessage::id) ?: lastSeen ?: 0L
+                            if (lastSeen != null) {
+                                val newInbound = response.items
+                                    .asSequence()
+                                    .filter { it.id > lastSeen && it.direction == "inbound" }
+                                    .sortedBy(HiroSmsMessage::id)
+                                    .toList()
+                                syncStore.addUnread(newInbound.size)
+                                newInbound.forEach(::notifyGatewayMessage)
+                            }
+                            syncStore.saveLastSeenMessageId(session, newestID)
                         }
-                        val newestID = response.items.maxOfOrNull(HiroSmsMessage::id) ?: lastSeen ?: 0L
-                        if (lastSeen != null) {
-                            val newInbound = response.items
-                                .asSequence()
-                                .filter { it.id > lastSeen && it.direction == "inbound" }
-                                .sortedBy(HiroSmsMessage::id)
-                                .toList()
-                            syncStore.addUnread(newInbound.size)
-                            newInbound.forEach(::notifyGatewayMessage)
-                        }
-                        syncStore.saveLastSeenMessageId(session, newestID)
                         gatewaySyncFailures = 0
                         replaceHealthIssues("server", emptyList())
                     } else {

@@ -65,6 +65,18 @@ data class HiroLoginResponse(
 data class HiroMeResponse(val user: HiroUser)
 
 @Serializable
+data class HiroTelephonyProfile(
+    val id: String,
+    @SerialName("display_name") val displayName: String,
+    val aor: String,
+    @SerialName("auth_username") val authUsername: String,
+    @SerialName("auth_password") val authPassword: String,
+    @SerialName("outbound_proxy") val outboundProxy: String,
+    val transport: String,
+    @SerialName("registration_interval") val registrationInterval: Int = 3600
+)
+
+@Serializable
 data class HiroApiErrorEnvelope(val error: HiroApiError? = null)
 
 @Serializable
