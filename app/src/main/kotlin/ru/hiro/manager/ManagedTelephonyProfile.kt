@@ -1,8 +1,12 @@
 package ru.hiro.manager
 
+import android.os.SystemClock
+
 /** Creates and keeps the server-owned SIP account in sync with the active server session. */
 object ManagedTelephonyProfile {
     private val unsafeValue = Regex("[\\r\\n\\\"<>]")
+    private const val registrationRefreshIntervalMillis = 15_000L
+    private val lastRegistrationAttempt = mutableMapOf<Long, Long>()
 
     fun ensure(profile: HiroTelephonyProfile): Boolean {
         validate(profile)
@@ -94,7 +98,24 @@ object ManagedTelephonyProfile {
         if (changed) {
             Account.saveAccounts()
             existing.reRegister()
+            lastRegistrationAttempt[existing.uap] = SystemClock.elapsedRealtime()
             Log.i(TAG, "Updated managed telephony profile ${profile.id}")
+        } else if (account.regint > 0) {
+            val now = SystemClock.elapsedRealtime()
+            val lastAttempt = lastRegistrationAttempt[existing.uap] ?: 0L
+            if (now - lastAttempt >= registrationRefreshIntervalMillis) {
+                lastRegistrationAttempt[existing.uap] = now
+                if (Api.ua_isregistered(existing.uap)) {
+                    // baresip can retain a stale registered flag when the PBX
+                    // restarts underneath an established TCP flow. A quiet
+                    // refresh keeps the public contact current without making
+                    // the UI flash yellow every few seconds.
+                    Api.ua_register(existing.uap)
+                } else {
+                    existing.reRegister()
+                }
+                Log.i(TAG, "Refreshed managed telephony profile ${profile.id}")
+            }
         }
         return changed
     }
