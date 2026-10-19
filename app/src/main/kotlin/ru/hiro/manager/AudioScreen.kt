@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -41,17 +42,23 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.Button
+import androidx.compose.material3.Surface
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -106,28 +113,15 @@ private fun AudioScreen(
         modifier = Modifier.fillMaxSize().imePadding(),
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
-            Column(modifier = Modifier.background(MaterialTheme.colorScheme.background)) {
-                Spacer(Modifier.statusBarsPadding())
-                TopAppBar(
-                    title = {
-                        Text(text = stringResource(R.string.audio_settings), fontWeight = FontWeight.Bold)
-                    },
-                    colors = hiroTopAppBarColors(),
-                    navigationIcon = {
-                        IconButton(onClick = onBack) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = null,
-                            )
-                        }
-                    },
-                    windowInsets = WindowInsets(0, 0, 0, 0),
-                    actions = {
-                        IconButton(onClick = checkOnClick) {
-                            Icon(imageVector = Icons.Filled.Check, contentDescription = "Check")
-                        }
-                    },
-                )
+            WorkspaceHeader("Гарнитура и звук", "Только этот смартфон", onBack = onBack)
+        },
+        bottomBar = {
+            Surface(color = MaterialTheme.colorScheme.surfaceContainerLowest) {
+                Button(
+                    onClick = checkOnClick,
+                    modifier = Modifier.fillMaxWidth().padding(16.dp).heightIn(min = 50.dp),
+                    shape = RoundedCornerShape(13.dp)
+                ) { Text("Сохранить настройки звука") }
             }
         }
     ) {
@@ -140,7 +134,7 @@ private val alertMessage = mutableStateOf("")
 private val showAlert = mutableStateOf(false)
 
 @Composable
-private fun AudioContent(viewModel: AudioViewModel, contentPadding: PaddingValues) {
+internal fun AudioContent(viewModel: AudioViewModel, contentPadding: PaddingValues) {
 
     AlertDialog(
         showDialog = showAlert,
@@ -150,26 +144,26 @@ private fun AudioContent(viewModel: AudioViewModel, contentPadding: PaddingValue
     )
 
     val scrollState = rememberScrollState()
+    var advanced by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(contentPadding)
-            .padding(top = 16.dp, bottom = 8.dp, start = 16.dp, end = 4.dp)
+            .padding(18.dp)
             .verticalScrollbar(scrollState)
             .verticalScroll(state = scrollState),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Ringtone(viewModel)
-        ToneCountry(viewModel)
-        SpeakerPhone(viewModel)
-        CallVolume(viewModel)
-        AudioDelay(viewModel)
-        MicGain(viewModel)
-        AudioModules(viewModel)
-        IlbcMode(viewModel)
-        OpusBitRate(viewModel)
-        OpusPacketLoss(viewModel)
+        HiroSection("Разговор")
+        WorkspaceCard{SpeakerPhone(viewModel);CallVolume(viewModel);MicGain(viewModel)}
+        HiroSection("Звук вызова")
+        WorkspaceCard{Ringtone(viewModel);ToneCountry(viewModel)}
+        TextButton(onClick={advanced=!advanced},modifier=Modifier.fillMaxWidth()){Text(if(advanced)"Скрыть технические параметры" else "Дополнительные аудиопараметры")}
+        if(advanced){
+            WorkspaceInfo("Задержка, модули обработки и параметры кодеков. Меняйте их, только если знаете, что требуется вашему подключению.")
+            WorkspaceCard{AudioDelay(viewModel);AudioModules(viewModel);IlbcMode(viewModel);OpusBitRate(viewModel);OpusPacketLoss(viewModel)}
+        }
     }
 }
 
@@ -305,6 +299,7 @@ private fun SpeakerPhone(viewModel: AudioViewModel) {
         )
         val speakerPhone by viewModel.speakerPhone.collectAsState()
         Switch(
+            modifier = Modifier.semantics { contentDescription = speakerPhoneTitle },
             checked = speakerPhone,
             onCheckedChange = {
                 viewModel.speakerPhone.value = it

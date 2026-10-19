@@ -8,9 +8,12 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -18,6 +21,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.outlined.Shield
+import androidx.compose.material.icons.outlined.Dns
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -72,39 +77,27 @@ fun HiroLoginScreen(
     }
 
     Box(
-        modifier = Modifier.fillMaxSize().imePadding().padding(24.dp),
+        modifier = Modifier.fillMaxSize().systemBarsPadding().imePadding(),
         contentAlignment = Alignment.Center
     ) {
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(24.dp),
-            tonalElevation = 4.dp
-        ) {
+        Column(Modifier.widthIn(max=460.dp).fillMaxWidth().verticalScroll(rememberScrollState()).padding(24.dp),verticalArrangement=Arrangement.spacedBy(22.dp)) {
+            Column(verticalArrangement=Arrangement.spacedBy(9.dp)) {
+                Text("HI-RO",color=MaterialTheme.colorScheme.primary,fontSize=38.sp,fontWeight=FontWeight.Bold,letterSpacing=(-1.5).sp)
+                Text("Ваше рабочее\nпространство связи",style=MaterialTheme.typography.headlineSmall)
+                Text("Звонки, сообщения и клиенты — в одном месте.",style=MaterialTheme.typography.bodyMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        Surface(modifier=Modifier.fillMaxWidth(),shape=RoundedCornerShape(22.dp),color=MaterialTheme.colorScheme.surfaceContainerLowest) {
             Column(
-                modifier = Modifier.padding(28.dp).verticalScroll(rememberScrollState()),
+                modifier = Modifier.padding(20.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.primaryContainer) {
-                        Icon(
-                            imageVector = Icons.Default.Lock,
-                            contentDescription = null,
-                            modifier = Modifier.padding(12.dp).size(24.dp),
-                            tint = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                    }
+                    HiroAvatar("",icon=Icons.Outlined.Dns)
                     Column {
-                        Text("HI-RO Connect", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                        Text("Вход на сервер организации", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+                        Text("Сервер организации",style=MaterialTheme.typography.titleMedium)
+                        Text("Личный доступ к рабочей связи",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
-
-                Spacer(Modifier.height(4.dp))
-                Text("Подключение к серверу", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                Text(
-                    "У каждой организации собственные пользователи и правила доступа.",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
 
                 OutlinedTextField(
                     value = server,
@@ -113,6 +106,7 @@ fun HiroLoginScreen(
                     label = { Text("Адрес сервера") },
                     placeholder = { Text("connect.example") },
                     singleLine = true,
+                    shape = RoundedCornerShape(13.dp),
                     enabled = !signingIn,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Done),
                     keyboardActions = KeyboardActions(onDone = {
@@ -124,20 +118,22 @@ fun HiroLoginScreen(
                     Button(
                         onClick = { onSelectServer(server) },
                         enabled = !signingIn && server.isNotBlank(),
-                        modifier = Modifier.fillMaxWidth().height(50.dp)
+                        modifier = Modifier.fillMaxWidth().heightIn(min=50.dp),
+                        shape=RoundedCornerShape(13.dp)
                     ) {
                         if (signingIn) {
-                            CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp)
+                            CircularProgressIndicator(modifier = Modifier.size(22.dp),color=MaterialTheme.colorScheme.onPrimary,strokeWidth=2.dp)
                         } else {
                             Text("Продолжить")
                         }
                     }
                 } else {
                     if (activeOptions.oidcEnabled) {
-                        OutlinedButton(
+                        Button(
                             onClick = { onOIDCSignIn(server) },
                             enabled = !signingIn,
-                            modifier = Modifier.fillMaxWidth().height(50.dp)
+                            modifier = Modifier.fillMaxWidth().heightIn(min=50.dp),
+                            shape=RoundedCornerShape(13.dp)
                         ) {
                             Text("Войти через SSO")
                         }
@@ -178,13 +174,14 @@ fun HiroLoginScreen(
                 }
 
                 if (error != null) {
-                    Text(error, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                    WorkspaceInfo(error,true)
                 }
                 if (activeOptions?.passwordEnabled == true) {
                     Button(
                         onClick = { submitPassword() },
                         enabled = !signingIn && username.isNotBlank() && password.isNotBlank(),
-                        modifier = Modifier.fillMaxWidth().height(50.dp)
+                        modifier = Modifier.fillMaxWidth().heightIn(min=50.dp),
+                        shape=RoundedCornerShape(13.dp)
                     ) {
                         Text("Войти")
                     }
@@ -194,6 +191,11 @@ fun HiroLoginScreen(
                         style = MaterialTheme.typography.labelSmall
                     )
                 }
+            }
+        }
+            Row(horizontalArrangement=Arrangement.spacedBy(9.dp),verticalAlignment=Alignment.Top){
+                Icon(Icons.Outlined.Shield,null,Modifier.size(18.dp),tint=MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("У каждой организации свой сервер и правила доступа. Используйте адрес, который вам предоставили.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }

@@ -5,6 +5,10 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.Alignment
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.navigation.NavController
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavType
@@ -66,10 +70,18 @@ internal fun PriorityRuleDialog(lines: List<HiroVoiceLine>, busy: Boolean, error
 @Composable
 internal fun RoutingChoice(label: String, choices: List<Pair<String, String>>, selected: String, onSelect: (String) -> Unit) {
     var open by remember { mutableStateOf(false) }
+    Column(verticalArrangement=Arrangement.spacedBy(7.dp)) {
+        Text(label,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
     Box {
-        OutlinedButton(onClick = { open = true }) { Text("$label: ${choices.find { it.first == selected }?.second ?: "Выберите"}") }
+        Surface(onClick={if(choices.isNotEmpty())open=true},shape=RoundedCornerShape(13.dp),color=MaterialTheme.colorScheme.surfaceContainerLowest,modifier=Modifier.fillMaxWidth()) {
+            Row(Modifier.fillMaxWidth().heightIn(min=50.dp).padding(14.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(10.dp)){
+                Text(choices.find{it.first==selected}?.second?:"Выберите",Modifier.weight(1f),style=MaterialTheme.typography.bodyLarge)
+                Icon(Icons.Outlined.ExpandMore,null,Modifier.size(19.dp),tint=MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             choices.forEach { (key, text) -> DropdownMenuItem(text = { Text(text) }, onClick = { onSelect(key); open = false }) }
         }
+    }
     }
 }

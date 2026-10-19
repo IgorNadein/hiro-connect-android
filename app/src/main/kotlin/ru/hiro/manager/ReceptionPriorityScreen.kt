@@ -110,9 +110,9 @@ internal fun ReceptionPriorityScreen(nav:NavController,auth:HiroAuthViewModel,in
             if(notice.isNotEmpty())item{WorkspaceInfo(notice)}
             if(ready&&!preferences.appliedToLiveCalls)item{WorkspaceInfo("Этот сервер ещё не применяет личные правила к звонкам. Сохранение работает; текущий приём звонков не меняется.")}
             if(page=="list"){
-                item{WorkspaceCard{Text("Получать все доступные звонки",style=MaterialTheme.typography.titleLarge);Text("Без правил вы наравне с коллегами. Ничего не выключено.",style=MaterialTheme.typography.bodySmall)}}
-                item{Text("Мои дополнительные правила",style=MaterialTheme.typography.titleLarge)}
-                if(ready&&preferences.rules.isEmpty())item{WorkspaceCard{Text("Пока нет правил");Text("Можно повысить свой приоритет для одной линии, телефона или типа шлюза. Остальные звонки останутся.",style=MaterialTheme.typography.bodySmall)}}
+                item{WorkspaceCard{HiroBadge("Базовый приоритет · 0",HiroTone.Neutral);Text("Все линии остаются доступными",style=MaterialTheme.typography.titleLarge);Text("Личное правило меняет только очерёдность. Оно не отключает звонки с других линий.",style=MaterialTheme.typography.bodyMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)}}
+                item{HiroSection("Мои дополнительные правила","${preferences.rules.size}")}
+                if(ready&&preferences.rules.isEmpty())item{HiroEmpty(Icons.Default.Route,"Пока нет правил","Вы наравне с коллегами. Добавьте предпочтение, если хотите получать определённые звонки раньше.")}
                 if(preferences.rules.isNotEmpty())item{WorkspaceGroup{preferences.rules.forEachIndexed{i,r->
                     WorkspaceRow(receptionRuleTarget(r,lines),"Приоритет ${r.priority} · "+if(r.callerNumber.isEmpty())"любой звонящий" else r.callerNumber,Icons.Default.Route,enabled=!busy,grouped=true){edit(r)}
                     if(i<preferences.rules.lastIndex)HorizontalDivider(color=MaterialTheme.colorScheme.outlineVariant,thickness=0.5.dp)
@@ -185,7 +185,7 @@ internal fun ReceptionPriorityScreen(nav:NavController,auth:HiroAuthViewModel,in
             if(page=="help"){
                 item{WorkspaceCard{Text("Без правил · все равны",style=MaterialTheme.typography.titleLarge);Text("Неизвестный номер предлагается всем доступным менеджерам. Если не-клиент есть в личных контактах нескольких менеджеров — сначала одновременно им, затем остальным.")}}
                 item{WorkspaceCard{Text("Предпочтение, не отказ",style=MaterialTheme.typography.titleLarge);Text("100 для NOVOFON не отключает MANGO. При равенстве приоритетов звонят одновременно. Занятых и недоступных пропускают; при отсутствии ответа переходят к следующей группе после тайм-аута АТС.")}}
-                item{WorkspaceInfo("Так работает подготовленный расчёт. Для реальных звонков нужны персональные SIP-направления и интеграция расчёта с АТС. Очередь самих звонков, исходящая линия и выбор SMS — отдельные настройки.")}
+                item{WorkspaceInfo(if(preferences.appliedToLiveCalls)"Сервер применяет личные правила через АТС. Очередь самих звонков, исходящая линия и выбор SMS — отдельные настройки." else "Для реальных звонков на сервере должны быть включены персональные SIP-направления и исполнитель АТС. Очередь самих звонков, исходящая линия и выбор SMS — отдельные настройки.")}
             }
         }
     }

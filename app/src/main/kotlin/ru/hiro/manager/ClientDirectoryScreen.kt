@@ -107,27 +107,21 @@ internal fun ClientDirectoryScreen(nav: NavController,auth: HiroAuthViewModel,us
     val title=when(page){"list"->"Клиенты";"card"->if(shared!=null)"Клиент команды" else "Личный контакт";"new"->"Личный контакт";"edit"->"Редактировать контакт";"promote"->"Сделать общим клиентом";"review"->"Открыть контакт команде?";"demote"->"Убрать из общих клиентов?";"priority"->"Очередь и исходящая линия";"incoming"->"Входящие: очередь";"outgoing"->"Исходящие: линия";"rules"->"Особые правила";"preview"->"Проверка приоритета";"import"->"Выбрать из телефона";else->"Клиенты"}
     Scaffold(containerColor=MaterialTheme.colorScheme.background,topBar={WorkspaceHeader(title,if(page=="list")"Клиенты — общие, адресная книга — личная" else "",onBack=if(page=="list")null else {{move(if(page in setOf("incoming","outgoing","rules","preview"))"priority" else if(page=="review")"promote" else if(page in setOf("new","import"))"list" else "card")}},
         actions={if(page=="list")IconButton(onClick={work{reload()}},enabled=!busy){Icon(Icons.Default.Refresh,"Обновить")}})}){padding->
+        if(page=="list") {
+            HiroDirectoryList(padding,entries.map{HiroDirectoryPerson(it.number,it.name,it.shared?.let(::clientOriginLabel)?:"Личный · только вам")},showPersonal,search,loaded,busy,privateReady,auth.personalContactsSyncEnabled(),user.role=="admin",error,
+                onPersonal={showPersonal=it},onQuery={search=it},onSync={nav.navigate("workspace-sync")},onOpen={selected=it;page="card";error=""},onAdd={newContact()},
+                onImport={if(ContextCompat.checkSelfPermission(context,Manifest.permission.READ_CONTACTS)==PackageManager.PERMISSION_GRANTED)scan()else permission.launch(Manifest.permission.READ_CONTACTS)},
+                onExternal={newContact();external=true;page="promote"},onReload={work{reload()}})
+            return@Scaffold
+        }
         LazyColumn(Modifier.fillMaxSize().padding(padding).imePadding(),state=listState,contentPadding=PaddingValues(18.dp),verticalArrangement=Arrangement.spacedBy(14.dp)){
             if(busy)item{LinearProgressIndicator(Modifier.fillMaxWidth())}
             if(error.isNotEmpty())item{WorkspaceInfo(error,true);TextButton(enabled=!busy,onClick={work{reload()}}){Text("Обновить данные, сохранив черновик")}}
-            if(page=="list"){
-                item{FlowRow(horizontalArrangement=Arrangement.spacedBy(8.dp)){FilterChip(!showPersonal,{showPersonal=false},label={Text("Клиенты команды")},colors=FilterChipDefaults.filterChipColors(selectedContainerColor=MaterialTheme.colorScheme.primaryContainer,selectedLabelColor=MaterialTheme.colorScheme.primary));FilterChip(showPersonal,{showPersonal=true},label={Text("Мои контакты")},colors=FilterChipDefaults.filterChipColors(selectedContainerColor=MaterialTheme.colorScheme.primaryContainer,selectedLabelColor=MaterialTheme.colorScheme.primary))}}
-                item{Text(if(showPersonal)"Личная книга · ${user.displayName}. Другие сотрудники не видят личные записи." else "Клиенты видны всем авторизованным сотрудникам организации.",style=MaterialTheme.typography.bodySmall)}
-                item{WorkspaceSearch(search,{search=it},"Имя или номер")}
-                if(showPersonal)item{WorkspaceRow("Синхронизация контактов",if(auth.personalContactsSyncEnabled())"Включена · только в вашу книгу" else "Выключена · можно включить в настройках",Icons.Default.Sync){nav.navigate("workspace-sync")}}
-                val filtered=entries.filter{it.name.contains(search,true)||it.number.contains(search)}.sortedWith(compareBy<DirectoryEntry>{it.name.lowercase()}.thenBy{it.number})
-                if(loaded&&filtered.isEmpty())item{WorkspaceCard{Text(if(search.isBlank())"Здесь пока нет контактов" else "По этому запросу контактов нет");Text("Можно добавить запись вручную или выбрать её из телефона.")}}
-                items(filtered,key={it.number}){entry->WorkspaceRow(entry.name.ifBlank{entry.number},entry.number+"\n"+(entry.shared?.let(::clientOriginLabel)?:"Личный · только вам"),if(entry.shared==null)Icons.Default.Lock else Icons.Default.People){selected=entry.number;page="card";error=""}}
-                if(privateReady)item{Button(onClick={newContact()},enabled=!busy,modifier=Modifier.fillMaxWidth()){Icon(Icons.Default.Add,null);Text("Добавить личный контакт")}}
-                if(privateReady)item{OutlinedButton(onClick={if(ContextCompat.checkSelfPermission(context,Manifest.permission.READ_CONTACTS)==PackageManager.PERMISSION_GRANTED)scan()else permission.launch(Manifest.permission.READ_CONTACTS)},enabled=!busy,modifier=Modifier.fillMaxWidth()){Text("Выбрать из контактов телефона")}}
-                if(!privateReady&&loaded)item{WorkspaceInfo("Личная адресная книга недоступна на этой версии сервера. Общие клиенты остаются доступны.")}
-                if(user.role=="admin")item{TextButton(onClick={newContact();external=true;page="promote"}){Text("Добавить клиента из другого источника")}}
-            }
             if(page=="card"){
-                item{WorkspaceCard{Text(displayName.ifBlank{selected},style=MaterialTheme.typography.headlineSmall);Text(selected);Text(if(shared==null)"Личный контакт · виден только вам" else "Общий клиент · виден всей команде",color=MaterialTheme.colorScheme.primary)}}
+                item{HiroContactHero(displayName.ifBlank{selected},selected,if(shared==null)"Личный контакт · только вам" else "Клиент команды",shared!=null)}
                 item{Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp)){
-                    Button(onClick={nav.navigate("workspace-dialer?number=${Uri.encode(selected)}")},enabled=canEdit,modifier=Modifier.weight(1f)){Text("Позвонить")}
-                    OutlinedButton(onClick={nav.navigate("gateway-messages?address=${Uri.encode(selected)}")},enabled=canEdit,modifier=Modifier.weight(1f)){Text("Написать")}
+                    Button(onClick={nav.navigate("workspace-dialer?number=${Uri.encode(selected)}")},enabled=canEdit,modifier=Modifier.weight(1f).heightIn(min=48.dp)){Icon(Icons.Default.Phone,null,Modifier.size(18.dp));Spacer(Modifier.width(6.dp));Text("Позвонить")}
+                    OutlinedButton(onClick={nav.navigate("gateway-messages?address=${Uri.encode(selected)}")},enabled=canEdit,modifier=Modifier.weight(1f).heightIn(min=48.dp)){Icon(Icons.Default.Sms,null,Modifier.size(18.dp));Spacer(Modifier.width(6.dp));Text("Написать")}
                 }}
                 if(canEdit)item{WorkspaceRow("Получать звонки этого номера раньше","Моё предпочтение, не назначение для всей команды",Icons.Default.PhoneCallback){nav.navigate("workspace-priority?caller=${Uri.encode(selected)}")}}
                 if(shared!=null){
@@ -138,7 +132,7 @@ internal fun ClientDirectoryScreen(nav: NavController,auth: HiroAuthViewModel,us
                 }else{
                     if(canEdit)item{Button(onClick={edit("promote")},modifier=Modifier.fillMaxWidth()){Text("Сделать общим клиентом")}}
                     if(privateReady)item{OutlinedButton(onClick={edit("edit")},modifier=Modifier.fillMaxWidth()){Text("Изменить личный контакт")}}
-                    item{WorkspaceInfo("Клиентский приоритет здесь не действует. Совпадение с вашей книгой само по себе ещё не направляет звонок вам.")}
+                    item{WorkspaceInfo("Личная запись не публикуется. Распределение звонков зависит от правил сервера и доступности менеджеров.")}
                 }
             }
             if(page in setOf("new","edit","promote")){

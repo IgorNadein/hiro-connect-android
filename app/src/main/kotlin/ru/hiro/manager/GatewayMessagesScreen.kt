@@ -10,6 +10,12 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -23,11 +29,13 @@ import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.Button
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.DropdownMenu
@@ -233,7 +241,8 @@ private fun GatewayMessagesScreen(navController: NavController, session: HiroSes
                         value = draft,
                         onValueChange = { draft = it },
                         modifier = Modifier.weight(1f),
-                        label = { Text("Сообщение") },
+                        placeholder = { Text("Сообщение") },
+                        shape = RoundedCornerShape(16.dp),
                         enabled = !sending,
                         maxLines = 4
                     )
@@ -314,7 +323,7 @@ private fun GatewayMessagesScreen(navController: NavController, session: HiroSes
 }
 
 @Composable
-private fun ConversationList(
+internal fun ConversationList(
     padding: PaddingValues,
     messages: List<GatewaySmsItem>,
     newAddress: String,
@@ -329,65 +338,33 @@ private fun ConversationList(
         .values
         .sortedByDescending { it.timestamp }
 
-    Column(modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp)) {
-        error?.let {
-            Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(vertical = 8.dp))
-        }
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            OutlinedTextField(
-                value = newAddress,
-                onValueChange = onNewAddressChange,
-                modifier = Modifier.weight(1f),
-                label = { Text("Номер телефона") },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone)
-            )
-            Button(enabled = newAddress.isNotBlank(), onClick = { onOpen(newAddress.trim()) }) {
-                Icon(Icons.Default.Add, contentDescription = null)
-                Text("Новое")
+    var composing by rememberSaveable { mutableStateOf(false) }
+    var recipient by rememberSaveable { mutableStateOf("") }
+    val filtered=conversations.filter{it.address.contains(newAddress,true)||it.text.contains(newAddress,true)}
+    LazyColumn(Modifier.fillMaxSize().padding(padding),contentPadding=PaddingValues(18.dp),verticalArrangement=Arrangement.spacedBy(14.dp)) {
+        item{WorkspaceSearch(newAddress,onNewAddressChange,"Поиск в сообщениях")}
+        if(!composing)item{Button(onClick={recipient="";composing=true},modifier=Modifier.fillMaxWidth().heightIn(min=48.dp),shape=RoundedCornerShape(13.dp)){
+            Icon(Icons.Outlined.Edit,null,Modifier.size(19.dp));Spacer(Modifier.width(8.dp));Text("Новое сообщение")
+        }} else item{WorkspaceCard{
+            Text("Кому написать?",style=MaterialTheme.typography.titleLarge)
+            Text("Номер с кодом страны. SIM отправки вы выберете в диалоге.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+            OutlinedTextField(recipient,{recipient=it},modifier=Modifier.fillMaxWidth(),label={Text("Номер телефона")},singleLine=true,shape=RoundedCornerShape(13.dp),keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Phone))
+            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp)){
+                TextButton(onClick={composing=false},modifier=Modifier.weight(1f)){Text("Отмена")}
+                Button(enabled=normalizeClientNumber(recipient)!=null,onClick={normalizeClientNumber(recipient)?.let{composing=false;onOpen(it)}},modifier=Modifier.weight(1f).heightIn(min=48.dp)){Text("Начать диалог")}
             }
-        }
-        if (conversations.isEmpty() && error == null) {
-            Text(
-                "Сообщений пока нет. Введите номер, чтобы начать диалог.",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 24.dp)
-            )
-        } else {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(conversations, key = { it.address }) { message ->
-                    Card(
-                        modifier = Modifier.fillMaxWidth().clickable { onOpen(message.address) },
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLowest),
-                        shape = RoundedCornerShape(18.dp)
-                    ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Row(modifier = Modifier.fillMaxWidth()) {
-                                Text(message.address, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                                Text(formatSmsTime(message.timestamp), style = MaterialTheme.typography.labelSmall)
-                            }
-                            Text(message.simLabel, style = MaterialTheme.typography.labelSmall)
-                            Spacer(Modifier.height(4.dp))
-                            Text(
-                                message.text,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
-            }
-        }
+        }}
+        if(error!=null)item{WorkspaceInfo(error,true)}
+        item{HiroSection("Диалоги",if(filtered.isEmpty())"" else "${filtered.size}")}
+        if(filtered.isEmpty()&&error==null)item{HiroEmpty(Icons.Outlined.Forum,if(newAddress.isBlank())"Сообщений пока нет" else "Диалог не найден",if(newAddress.isBlank())"Начните диалог по рабочей SIM. Ответы появятся здесь." else "Попробуйте другой номер или текст сообщения.")}
+        items(filtered,key={it.address}){message->Surface(color=MaterialTheme.colorScheme.surfaceContainerLowest,shape=RoundedCornerShape(16.dp)){
+            HiroPersonRow(message.address,message.text,message.simLabel,hiroListTime(message.timestamp),Icons.Outlined.ChatBubbleOutline){onOpen(message.address)}
+        }}
     }
 }
 
 @Composable
-private fun MessageThread(
+internal fun MessageThread(
     padding: PaddingValues,
     messages: List<GatewaySmsItem>,
     error: String?
@@ -413,12 +390,12 @@ private fun MessageThread(
                     horizontalArrangement = if (outgoing) Arrangement.End else Arrangement.Start
                 ) {
                     Card(
-                        modifier = Modifier.fillMaxWidth(0.82f),
+                        modifier = Modifier.widthIn(max=320.dp).fillMaxWidth(0.88f),
                         colors = CardDefaults.cardColors(
                             containerColor = if (outgoing) MaterialTheme.colorScheme.primaryContainer
-                            else MaterialTheme.colorScheme.surfaceContainer
+                            else MaterialTheme.colorScheme.surfaceContainerLowest
                         ),
-                        shape = RoundedCornerShape(18.dp)
+                        shape = RoundedCornerShape(topStart=18.dp,topEnd=18.dp,bottomEnd=if(outgoing)4.dp else 18.dp,bottomStart=if(outgoing)18.dp else 4.dp)
                     ) {
                         Column(modifier = Modifier.padding(12.dp)) {
                             Text(message.text)
@@ -457,7 +434,7 @@ private fun localizedSmsStatus(direction: String, status: String): String = when
     else -> status
 }
 
-private data class GatewaySmsItem(
+internal data class GatewaySmsItem(
     val id: String,
     val address: String,
     val text: String,

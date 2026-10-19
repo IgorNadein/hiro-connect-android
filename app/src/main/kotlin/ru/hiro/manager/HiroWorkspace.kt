@@ -21,6 +21,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.*
+import androidx.compose.material.icons.automirrored.outlined.Chat
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -29,7 +31,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.style.TextAlign
 import androidx.core.content.ContextCompat
 import androidx.navigation.NavController
 import androidx.navigation.NavGraphBuilder
@@ -45,6 +53,7 @@ import kotlinx.coroutines.launch
 internal data class WorkspaceTab(val route: String, val label: String)
 internal val workspaceTabs = listOf(WorkspaceTab("main", "Звонки"), WorkspaceTab("gateway-messages", "Сообщения"), WorkspaceTab("client-routing", "Клиенты"), WorkspaceTab("workspace-settings", "Настройки"))
 internal fun workspaceTabFor(route: String?): String = when {
+    route?.startsWith("workspace-dialer") == true -> "main"
     route?.startsWith("client-routing") == true -> "client-routing"
     route?.startsWith("gateway-messages") == true || route?.startsWith("chat") == true -> "gateway-messages"
     route?.startsWith("workspace-") == true || route in setOf("settings", "audio", "accounts", "about") -> "workspace-settings"
@@ -73,9 +82,12 @@ internal fun HiroWorkspaceShell(nav: NavController, calls: ViewModel, content: @
     val context = LocalContext.current
     remember { GatewayMessageSyncStore(context) }
     val unread by GatewayMessageSyncStore.unreadCount.collectAsState()
+    // Avoid broken words or shrinking accessibility text in a four-column bar.
+    // Page titles remain visible, and every icon retains its full TalkBack label.
+    val iconOnlyNavigation = LocalConfiguration.current.screenWidthDp / LocalDensity.current.fontScale < 300f
     CompositionLocalProvider(LocalWorkspaceNavigation provides navigation) {
         Scaffold(contentWindowInsets = WindowInsets(0,0,0,0), bottomBar = {
-            if ((route?.substringBefore('?') in rootRoutes || route?.startsWith("workspace-")==true) && !(route == "main" && live.isNotEmpty())) Column {
+            if ((route?.substringBefore('?') in rootRoutes || route?.startsWith("workspace-")==true) && route?.startsWith("workspace-dialer")!=true && !(route == "main" && live.isNotEmpty())) Column {
                 if (live.isNotEmpty()) TextButton(onClick = { navigation.go("main") }, modifier = Modifier.fillMaxWidth()) {
                     Icon(Icons.Default.Phone, null); Spacer(Modifier.width(8.dp)); Text("Вернуться к разговору")
                 }
@@ -86,13 +98,13 @@ internal fun HiroWorkspaceShell(nav: NavController, calls: ViewModel, content: @
                     workspaceTabs.forEachIndexed { index, tab ->
                         val selected=workspaceTabFor(route)==tab.route
                         val tint=if(selected)MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                        Column(Modifier.weight(1f).heightIn(min=52.dp).selectable(selected=selected,enabled=!navigation.busy,role=Role.Tab,onClick={navigation.go(tab.route)}).padding(vertical=4.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(5.dp)) {
+                        Column(Modifier.weight(1f).heightIn(min=52.dp).selectable(selected=selected,enabled=!navigation.busy,role=Role.Tab,onClick={navigation.go(tab.route)}).semantics(mergeDescendants=true){if(iconOnlyNavigation)contentDescription=tab.label}.padding(vertical=4.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(5.dp)) {
                             Box(Modifier.size(46.dp,28.dp).then(if(selected)Modifier.background(MaterialTheme.colorScheme.primaryContainer,RoundedCornerShape(12.dp))else Modifier),contentAlignment=Alignment.Center) {
                                 BadgedBox(badge={if(index==1&&unread>0)Badge{Text(if(unread>99)"99+" else "$unread")}}) {
-                                    Icon(listOf(Icons.Default.Phone,Icons.AutoMirrored.Filled.Chat,Icons.Default.People,Icons.Default.Settings)[index],null,tint=tint,modifier=Modifier.size(20.dp))
+                                    Icon(listOf(Icons.Outlined.Phone,Icons.AutoMirrored.Outlined.Chat,Icons.Outlined.People,Icons.Outlined.Settings)[index],null,tint=tint,modifier=Modifier.size(22.dp))
                                 }
                             }
-                            Text(tab.label,style=MaterialTheme.typography.labelSmall,color=tint,maxLines=1)
+                            if(!iconOnlyNavigation)Text(tab.label,style=MaterialTheme.typography.labelSmall,color=tint,maxLines=1,textAlign=TextAlign.Center)
                         }
                     }
                     }
@@ -121,7 +133,7 @@ internal fun WorkspaceHeader(title:String,subtitle:String="",onBack:(()->Unit)?=
         Row(Modifier.fillMaxWidth().then(if(statusInset)Modifier.statusBarsPadding()else Modifier).padding(start=if(onBack==null)21.dp else 9.dp,end=9.dp,top=18.dp,bottom=16.dp),verticalAlignment=Alignment.CenterVertically) {
             if(onBack!=null)IconButton(onClick=onBack){Icon(Icons.AutoMirrored.Filled.ArrowBack,"Назад",modifier=Modifier.size(20.dp))}
             Column(Modifier.weight(1f).padding(end=8.dp),verticalArrangement=Arrangement.spacedBy(5.dp)) {
-                Text(title,style=MaterialTheme.typography.headlineSmall)
+                Text(title,style=if(onBack==null)MaterialTheme.typography.headlineSmall else MaterialTheme.typography.titleLarge.copy(fontSize=22.sp,lineHeight=28.sp))
                 if(subtitle.isNotEmpty())Text(subtitle,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
             }
             actions()
@@ -132,7 +144,7 @@ internal fun WorkspaceHeader(title:String,subtitle:String="",onBack:(()->Unit)?=
 @Composable
 internal fun WorkspaceSearch(value:String,onValueChange:(String)->Unit,label:String) {
     OutlinedTextField(value,onValueChange,placeholder={Text(label)},leadingIcon={Icon(Icons.Default.Search,null,modifier=Modifier.size(20.dp))},singleLine=true,
-        shape=RoundedCornerShape(13.dp),modifier=Modifier.fillMaxWidth(),colors=OutlinedTextFieldDefaults.colors(unfocusedBorderColor=MaterialTheme.colorScheme.outlineVariant,unfocusedContainerColor=MaterialTheme.colorScheme.surfaceContainerLowest,focusedContainerColor=MaterialTheme.colorScheme.surfaceContainerLowest))
+        textStyle=MaterialTheme.typography.bodyLarge,shape=RoundedCornerShape(14.dp),modifier=Modifier.fillMaxWidth(),colors=OutlinedTextFieldDefaults.colors(unfocusedBorderColor=MaterialTheme.colorScheme.outlineVariant,unfocusedContainerColor=MaterialTheme.colorScheme.surfaceContainerLowest,focusedContainerColor=MaterialTheme.colorScheme.surfaceContainerLowest))
 }
 
 @Composable
@@ -148,16 +160,22 @@ internal fun WorkspaceCard(content: @Composable ColumnScope.() -> Unit) {
 }
 @Composable
 internal fun WorkspaceInfo(text: String, error: Boolean = false) {
-    Surface(color = if(error) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.primaryContainer, shape = RoundedCornerShape(13.dp)) {
-        Text(text, Modifier.fillMaxWidth().padding(14.dp), style = MaterialTheme.typography.bodySmall)
+    val(background,foreground)=hiroTone(if(error)HiroTone.Error else HiroTone.Brand)
+    Surface(color=background,shape=RoundedCornerShape(14.dp)) {
+        Row(Modifier.fillMaxWidth().padding(14.dp),horizontalArrangement=Arrangement.spacedBy(9.dp),verticalAlignment=Alignment.Top) {
+            Icon(if(error)Icons.Outlined.ErrorOutline else Icons.Outlined.Info,null,Modifier.size(17.dp),tint=foreground)
+            Text(text,Modifier.weight(1f),style=MaterialTheme.typography.bodySmall,color=foreground)
+        }
     }
 }
 @Composable
 internal fun WorkspaceRow(title: String, subtitle: String, icon: ImageVector = Icons.Default.ChevronRight, enabled: Boolean = true, grouped:Boolean=false, click: () -> Unit) {
     Surface(shape = RoundedCornerShape(if(grouped)0.dp else 17.dp), color = MaterialTheme.colorScheme.surfaceContainerLowest) {
         Row(Modifier.fillMaxWidth().clickable(enabled = enabled, onClick = click).heightIn(min=67.dp).padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Icon(icon, null, tint = MaterialTheme.colorScheme.primary,modifier=Modifier.size(20.dp))
-            Column(Modifier.weight(1f)) { Text(title, style = MaterialTheme.typography.titleMedium); Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            Surface(color=MaterialTheme.colorScheme.primaryContainer,shape=RoundedCornerShape(11.dp),modifier=Modifier.size(36.dp)) {
+                Box(contentAlignment=Alignment.Center){Icon(icon,null,tint=MaterialTheme.colorScheme.primary,modifier=Modifier.size(19.dp))}
+            }
+            Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(4.dp)) { Text(title, style = MaterialTheme.typography.titleMedium); if(subtitle.isNotBlank())Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             Icon(Icons.Default.ChevronRight, null,tint=MaterialTheme.colorScheme.onSurfaceVariant,modifier=Modifier.size(20.dp))
         }
     }
@@ -169,21 +187,16 @@ internal fun WorkspaceCallsContent(nav: NavController, calls: ViewModel, padding
     val live by calls.calls.collectAsState()
     var journal by remember { mutableStateOf<List<CallHistoryNew>>(emptyList()) }
     var query by rememberSaveable { mutableStateOf("") }
+    var missed by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(live) { while(true) { journal = synchronized(BaresipService.callHistory) { BaresipService.callHistory.toList().asReversed() }; delay(1500) } }
-    LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        item { WorkspaceInfo(if(agents.any { it.status == BaresipService.circleGreen.getValue(BaresipService.colorblind) }) "Рабочая SIP-связь зарегистрирована" else "Рабочая связь не зарегистрирована. Проверьте интернет и параметры подключения.") }
-        item { Button(onClick = { nav.navigate("workspace-dialer") }, Modifier.fillMaxWidth(),shape=RoundedCornerShape(13.dp)) { Icon(Icons.Default.Dialpad,null); Spacer(Modifier.width(8.dp)); Text("Набрать номер") } }
-        item { WorkspaceSearch(query,{query=it},"Поиск по номеру") }
-        item { Text("Журнал этого смартфона", style = MaterialTheme.typography.titleLarge) }
-        if(journal.isEmpty()) item { WorkspaceCard { Text("Звонков пока нет"); Text("Здесь появится история ваших входящих и исходящих звонков.", style = MaterialTheme.typography.bodyMedium) } }
-        items(journal.filter { it.peerUri.contains(query,true) }.take(100)) { call ->
-            WorkspaceRow(call.peerUri.removePrefix("sip:").substringBefore('@'), "${if(call.direction == "in") "Входящий" else "Исходящий"} · ${DateFormat.getDateTimeInstance(DateFormat.SHORT,DateFormat.SHORT).format(call.stopTime.time)}", Icons.Default.History) {
-                val direction = if(call.direction == "in") { if(call.startTime == null) CALL_MISSED_IN else CALL_DOWN_GREEN } else { if(call.startTime == null) CALL_MISSED_OUT else CALL_UP_GREEN }
-                calls.selectCallRow(CallRow(call.aor,call.peerUri,direction,call.startTime,call.stopTime,call.recording.toList())); nav.navigate("call_details")
-            }
-        }
-        item { Text("Общий список разговоров команды и подключение к ним требуют серверной поддержки; этот журнал её не заменяет.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-    }
+    val rows=journal.take(100).mapIndexed{i,call->HiroCallLogItem(i.toString(),Contact.findContact(call.peerUri)?.name()?:call.peerUri.removePrefix("sip:").substringBefore('@'),call.peerUri.removePrefix("sip:").substringBefore('@'),
+        hiroListTime(call.stopTime.timeInMillis),call.direction=="in",call.direction=="in"&&call.startTime==null)}
+    HiroCallsFeed(padding,agents.any{it.status==BaresipService.circleGreen.getValue(BaresipService.colorblind)},rows,query,missed,{query=it},{missed=it},
+        onDial={nav.navigate("workspace-dialer")},onHelp={nav.navigate("workspace-help")},onOpen={key->
+            val call=journal.getOrNull(key.toIntOrNull()?:-1)?:return@HiroCallsFeed
+            val direction=if(call.direction=="in"){if(call.startTime==null)CALL_MISSED_IN else CALL_DOWN_GREEN}else{if(call.startTime==null)CALL_MISSED_OUT else CALL_UP_GREEN}
+            calls.selectCallRow(CallRow(call.aor,call.peerUri,direction,call.startTime,call.stopTime,call.recording.toList()));nav.navigate("call_details")
+        })
 }
 
 fun NavGraphBuilder.workspaceRoutes(nav: NavController, calls: ViewModel, auth: HiroAuthViewModel, session: HiroSession) {
@@ -222,9 +235,14 @@ private fun WorkspaceSettings(nav: NavController, session: HiroSession) {
         Setting("Помощь","Помощь и проверка связи","Диагностика, разрешения и обновления","workspace-help",Icons.Default.HelpOutline,"не работает версия обновление")
     ).filter { (session.user.role == "admin" || it.section != "Для всей организации") && (it.name+it.detail+it.keywords).contains(query,true) }
     WorkspacePage("Настройки","Личные параметры и организация") {
+        if(query.isBlank())item{Surface(onClick={nav.navigate("workspace-profile")},shape=RoundedCornerShape(18.dp),color=MaterialTheme.colorScheme.surfaceContainerLowest){Row(Modifier.fillMaxWidth().padding(16.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)){
+            HiroAvatar(session.user.displayName,46.dp)
+            Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(4.dp)){Text(session.user.displayName,style=MaterialTheme.typography.titleMedium);Text(if(session.user.role=="admin")"Администратор организации" else if(session.user.role=="manager")"Рабочее место менеджера" else "Просмотр данных",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)}
+            Icon(Icons.Outlined.ChevronRight,null,tint=MaterialTheme.colorScheme.onSurfaceVariant,modifier=Modifier.size(20.dp))
+        }}}
         item { WorkspaceSearch(query,{query=it},"Найти настройку") }
         rows.groupBy { it.section }.forEach { (group,entries) ->
-            item { Text(group,style=MaterialTheme.typography.titleLarge) }
+            item { HiroSection(group) }
             item { WorkspaceGroup { entries.forEachIndexed { i,row ->
                 WorkspaceRow(row.name,row.detail,row.icon,grouped=true) { nav.navigate(row.route) }
                 if(i<entries.lastIndex)HorizontalDivider(color=MaterialTheme.colorScheme.outlineVariant,thickness=0.5.dp)
@@ -347,26 +365,43 @@ private fun WorkspacePolicies(nav: NavController,auth: HiroAuthViewModel,user: H
 
 @Composable
 private fun WorkspaceDialer(nav: NavController,calls: ViewModel,auth: HiroAuthViewModel,initial: String) {
-    val context=LocalContext.current;val agents by BaresipService.uas
+    val context=LocalContext.current
+    val agents by BaresipService.uas
     val sip=agents.filter{!it.account.isMobile&&it.uap!=0L}
-    var number by rememberSaveable{mutableStateOf(initial)};var line by rememberSaveable{mutableStateOf("")};var aor by rememberSaveable{mutableStateOf("")};var lines by remember{mutableStateOf<List<HiroVoiceLine>>(emptyList())};var error by remember{mutableStateOf("")};var ready by remember{mutableStateOf(false)}
+    var number by rememberSaveable{mutableStateOf(initial)}
+    var line by rememberSaveable{mutableStateOf("")}
+    var aor by rememberSaveable{mutableStateOf("")}
+    var lines by remember{mutableStateOf<List<HiroVoiceLine>>(emptyList())}
+    var error by remember{mutableStateOf("")}
+    var ready by remember{mutableStateOf(false)}
     LaunchedEffect(Unit){try{lines=auth.authenticatedRequest{c,s->c.voiceLines(s)}.lines;ready=true}catch(e:CancellationException){throw e}catch(e:Exception){error=(e as? HiroServerException)?.userMessage?:"Не удалось загрузить линии"}}
     LaunchedEffect(sip.map{it.account.aor}){if(sip.none{it.account.aor==aor})aor=sip.firstOrNull()?.account?.aor.orEmpty()}
     val authState by auth.state.collectAsState()
     val user=(authState as? HiroAuthState.SignedIn)?.session?.user
-    WorkspacePage("Набрать номер","Источник виден до начала вызова",nav){
-        item{OutlinedTextField(number,{number=it},label={Text("Номер с кодом страны или 600 для эха")},modifier=Modifier.fillMaxWidth(),singleLine=true)}
-        item{RoutingChoice("Линия для этого звонка",listOf("" to "Автоматически по правилам")+lines.filter{it.enabled}.map{it.id to "${it.name} · ${it.gatewayType}"},line){line=it}}
-        if(sip.size>1)item{RoutingChoice("Рабочее SIP-подключение",sip.map{it.account.aor to it.account.aor},aor){aor=it}}
-        if(error.isNotEmpty())item{WorkspaceInfo(error,true)}
-        item{Button(enabled=user?.role in setOf("manager","admin") && (ready||number=="600") && (normalizeClientNumber(number)!=null||number=="600") && sip.any{it.account.aor==aor},onClick={
-            val ua=sip.find{it.account.aor==aor}?:return@Button
-            if(ua.status!=BaresipService.circleGreen.getValue(BaresipService.colorblind)){error="Рабочее SIP-подключение не зарегистрировано";return@Button}
-            val selected=lines.find{it.id==line&&it.enabled}
-            if(line.isNotEmpty()&&selected==null){error="Выбранная линия недоступна";return@Button}
-            val extension=if(number=="600")"600" else "*88${selected?.code?:"0"}*${normalizeClientNumber(number)}"
-            calls.updateSelectedAor(aor);handleIntent(context,calls,Intent(context,MainActivity::class.java).putExtra("uap",ua.uap).putExtra("peer","sip:$extension@${Utils.aorDomain(aor)}"),"call");nav.navigate("main"){popUpTo("main")}
-        },modifier=Modifier.fillMaxWidth()){Icon(Icons.Default.Phone,null);Spacer(Modifier.width(8.dp));Text("Позвонить")}}
-        item{Text("Явный выбор действует только на следующий звонок. Для автоматического выбора используются правила сервера.",style=MaterialTheme.typography.bodySmall)}
+    val canCall=user?.role in setOf("manager","admin") && (ready||number=="600") && (normalizeClientNumber(number)!=null||number=="600") && sip.any{it.account.aor==aor}
+    fun placeCall(){
+        val ua=sip.find{it.account.aor==aor}?:return
+        if(ua.status!=BaresipService.circleGreen.getValue(BaresipService.colorblind)){error="Рабочее SIP-подключение не зарегистрировано";return}
+        val selected=lines.find{it.id==line&&it.enabled}
+        if(line.isNotEmpty()&&selected==null){error="Выбранная линия недоступна";return}
+        val extension=if(number=="600")"600" else "*88${selected?.code?:"0"}*${normalizeClientNumber(number)}"
+        calls.updateSelectedAor(aor)
+        handleIntent(context,calls,Intent(context,MainActivity::class.java).putExtra("uap",ua.uap).putExtra("peer","sip:$extension@${Utils.aorDomain(aor)}"),"call")
+        nav.navigate("main"){popUpTo("main")}
     }
+    HiroDialer(
+        number = number,
+        onNumber = { number = it },
+        lineOptions = listOf("" to "Автоматически по правилам") +
+            lines.filter { it.enabled }.map { it.id to "${it.name} · ${it.gatewayType}" },
+        line = line,
+        onLine = { line = it },
+        sipOptions = sip.map { it.account.aor to it.account.aor },
+        aor = aor,
+        onAor = { aor = it },
+        canCall = canCall,
+        error = error,
+        onCall = { placeCall() },
+        onBack = { nav.navigateUp() }
+    )
 }

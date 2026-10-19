@@ -67,12 +67,12 @@ fun AboutScreen(onBack: () -> Unit) {
     val updateState by updates.state.collectAsState()
     val version = BuildConfig.VERSION_NAME
     val aboutText = stringResource(R.string.hiro_about_text, version)
-    val errorColor = MaterialTheme.colorScheme.error
+    val linkColor = MaterialTheme.colorScheme.primary
     val onBackground = MaterialTheme.colorScheme.onBackground
-    val annotatedText = remember(aboutText, errorColor) {
+    val annotatedText = remember(aboutText, linkColor) {
         AnnotatedString.fromHtml(
             htmlString = aboutText,
-            linkStyles = TextLinkStyles(SpanStyle(color = errorColor))
+            linkStyles = TextLinkStyles(SpanStyle(color = linkColor))
         )
     }
 
@@ -80,27 +80,7 @@ fun AboutScreen(onBack: () -> Unit) {
         modifier = Modifier.fillMaxSize().imePadding(),
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
-            Column(modifier = Modifier.background(MaterialTheme.colorScheme.background)) {
-                Spacer(Modifier.statusBarsPadding())
-                TopAppBar(
-                    title = {
-                        Text(
-                            text = stringResource(R.string.hiro_about_title),
-                            fontWeight = FontWeight.Bold
-                        )
-                    },
-                    navigationIcon = {
-                        IconButton(onClick = onBack) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = null,
-                            )
-                        }
-                    },
-                    colors = hiroTopAppBarColors(),
-                    windowInsets = WindowInsets(0, 0, 0, 0)
-                )
-            }
+            WorkspaceHeader("О приложении", "HI-RO Connect · $version", onBack = onBack)
         }
     ) { contentPadding ->
         Column(
@@ -108,7 +88,7 @@ fun AboutScreen(onBack: () -> Unit) {
                 .padding(contentPadding)
                 .verticalScroll(rememberScrollState())
                 .fillMaxSize()
-                .padding(horizontal = 16.dp, vertical = 16.dp),
+                .padding(18.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             UpdatesCard(
@@ -144,7 +124,7 @@ private fun UpdatesCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainer
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLowest
         )
     ) {
         Column(

@@ -152,9 +152,9 @@ fun AppTheme(
         }
 
     val typography = Typography(
-        headlineSmall = TextStyle(fontSize=26.sp,lineHeight=32.sp,fontWeight=FontWeight.SemiBold),
+        headlineSmall = TextStyle(fontSize=26.sp,lineHeight=32.sp,fontWeight=FontWeight.SemiBold,letterSpacing=(-.5).sp),
         titleLarge = TextStyle(fontSize=17.sp,lineHeight=23.sp,fontWeight=FontWeight.SemiBold),
-        titleMedium = TextStyle(fontSize=14.sp,lineHeight=20.sp,fontWeight=FontWeight.Medium),
+        titleMedium = TextStyle(fontSize=15.sp,lineHeight=21.sp,fontWeight=FontWeight.Medium),
         bodyLarge = TextStyle(fontSize=14.sp,lineHeight=21.sp),
         bodyMedium = TextStyle(fontSize=14.sp,lineHeight=21.sp),
         bodySmall = TextStyle(fontSize=12.sp,lineHeight=18.sp),
@@ -162,7 +162,7 @@ fun AppTheme(
         labelMedium = TextStyle(fontSize=12.sp,lineHeight=18.sp,fontWeight=FontWeight.Medium),
         labelSmall = TextStyle(fontSize=11.sp,lineHeight=16.sp,fontWeight=FontWeight.Medium)
     )
-    MaterialTheme(colorScheme = colorScheme, typography=typography, shapes = Shapes(extraSmall=RoundedCornerShape(12.dp),small = RoundedCornerShape(12.dp), medium = RoundedCornerShape(16.dp), large = RoundedCornerShape(18.dp), extraLarge=RoundedCornerShape(16.dp))) {
+    MaterialTheme(colorScheme = colorScheme, typography=typography, shapes = Shapes(extraSmall=RoundedCornerShape(8.dp),small = RoundedCornerShape(12.dp), medium = RoundedCornerShape(14.dp), large = RoundedCornerShape(18.dp), extraLarge=RoundedCornerShape(20.dp))) {
         Surface(
             modifier = Modifier.fillMaxSize(),
             color = MaterialTheme.colorScheme.background,

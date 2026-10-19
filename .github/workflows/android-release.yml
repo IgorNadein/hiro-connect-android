@@ -88,11 +88,12 @@ jobs:
         run: |
           chmod +x gradlew
           ./gradlew :app:testDebugUnitTest :app:assembleRelease
-      - name: Verify native settings and priority screens
+      - name: Verify native interface and priority screens
         run: |
           ./gradlew -I tools/ui-smoke/run-ui.init.gradle :app:testDebugUnitTest \
             --tests ru.hiro.manager.NativePrioritySmokeTest \
-            --tests ru.hiro.manager.NativeWorkspaceSmokeTest
+            --tests ru.hiro.manager.NativeWorkspaceSmokeTest \
+            --tests ru.hiro.manager.NativeVisualSystemTest
       - name: Verify and prepare APK
         run: |
           test -f app/build/outputs/apk/release/app-release.apk
@@ -111,7 +112,13 @@ jobs:
           name: HI-RO Connect ${{ env.VERSION_NAME }}
           target_commitish: ${{ github.sha }}
           body: |
-            Нативный интерфейс приближен к утверждённому макету: сгруппированные настройки, единые заголовки и поля, синяя навигация, светлая и тёмная темы.
+            Новый этап нативного редизайна по утверждённому макету: единые карточки, аватары, поля, отступы и статусы в светлой и тёмной темах.
+
+            Переработаны вход, журнал звонков с поиском и фильтром пропущенных, клиенты и личные контакты, список сообщений и диалоги.
+            Новый номеронабиратель с явным выбором линии и закреплённой кнопкой вызова. Долгое нажатие 0 вводит +.
+            Обновлены входящий/исходящий вызовы и экран разговора. Подписанные микрофон, динамик, удержание и клавиатура собраны вместе; перевод и сведения открываются отдельно.
+            Группировка настроек звука отделяет повседневные функции от технических. При очень крупном тексте нижняя навигация сохраняет доступные подписи для TalkBack без разрыва слов.
+            Изменения касаются интерфейса, а не замены SIP/аудиоядра, авторизации, согласий или правил маршрутизации.
 
             Новый раздел: Настройки → Мой приоритет звонков. Правила повышают очерёдность получения звонка, не отключая другие линии.
             Поддерживаются область линии, устройства, типа шлюза, все линии и только подтверждённые голосовые SIM; можно уточнить номер звонящего.
