@@ -10,6 +10,8 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
@@ -25,6 +27,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -72,35 +75,69 @@ internal fun HiroWorkspaceShell(nav: NavController, calls: ViewModel, content: @
     val unread by GatewayMessageSyncStore.unreadCount.collectAsState()
     CompositionLocalProvider(LocalWorkspaceNavigation provides navigation) {
         Scaffold(contentWindowInsets = WindowInsets(0,0,0,0), bottomBar = {
-            if (route?.substringBefore('?') in rootRoutes && !(route == "main" && live.isNotEmpty())) Column {
+            if ((route?.substringBefore('?') in rootRoutes || route?.startsWith("workspace-")==true) && !(route == "main" && live.isNotEmpty())) Column {
                 if (live.isNotEmpty()) TextButton(onClick = { navigation.go("main") }, modifier = Modifier.fillMaxWidth()) {
                     Icon(Icons.Default.Phone, null); Spacer(Modifier.width(8.dp)); Text("Вернуться к разговору")
                 }
-                NavigationBar(containerColor = MaterialTheme.colorScheme.surfaceContainerLowest) {
+                Surface(color=MaterialTheme.colorScheme.surfaceContainerLowest) {
+                  Column(Modifier.navigationBarsPadding()) {
+                    HorizontalDivider(color=MaterialTheme.colorScheme.outlineVariant,thickness=0.5.dp)
+                    Row(Modifier.fillMaxWidth().padding(horizontal=6.dp,vertical=8.dp)) {
                     workspaceTabs.forEachIndexed { index, tab ->
-                        NavigationBarItem(selected = workspaceTabFor(route) == tab.route, enabled = !navigation.busy, onClick = { navigation.go(tab.route) },
-                            icon = { BadgedBox(badge = { if(index == 1 && unread > 0) Badge { Text(if (unread > 99) "99+" else "$unread") } }) {
-                                Icon(listOf(Icons.Default.Phone, Icons.AutoMirrored.Filled.Chat, Icons.Default.People, Icons.Default.Settings)[index], null)
-                            } }, label = { Text(tab.label, maxLines = 1) })
+                        val selected=workspaceTabFor(route)==tab.route
+                        val tint=if(selected)MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                        Column(Modifier.weight(1f).heightIn(min=52.dp).selectable(selected=selected,enabled=!navigation.busy,role=Role.Tab,onClick={navigation.go(tab.route)}).padding(vertical=4.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(5.dp)) {
+                            Box(Modifier.size(46.dp,28.dp).then(if(selected)Modifier.background(MaterialTheme.colorScheme.primaryContainer,RoundedCornerShape(12.dp))else Modifier),contentAlignment=Alignment.Center) {
+                                BadgedBox(badge={if(index==1&&unread>0)Badge{Text(if(unread>99)"99+" else "$unread")}}) {
+                                    Icon(listOf(Icons.Default.Phone,Icons.AutoMirrored.Filled.Chat,Icons.Default.People,Icons.Default.Settings)[index],null,tint=tint,modifier=Modifier.size(20.dp))
+                                }
+                            }
+                            Text(tab.label,style=MaterialTheme.typography.labelSmall,color=tint,maxLines=1)
+                        }
                     }
+                    }
+                  }
                 }
             }
         }) { padding -> Box(Modifier.fillMaxSize().padding(bottom = padding.calculateBottomPadding())) { content() } }
         navigation.pending?.let { destination -> AlertDialog(onDismissRequest = { navigation.pending = null },
-            title = { Text("Есть несохранённые изменения") }, text = { Text("Переход не сохраняет черновик и не публикует контакт для команды.") },
+            title = { Text("Есть несохранённые изменения") }, text = { Text("Переход не сохранит черновик. Данные и настройки на сервере не изменятся.") },
             confirmButton = { TextButton(onClick = { navigation.dirty = false; navigation.pending = null; navigation.go(destination) }) { Text("Не сохранять и перейти") } },
             dismissButton = { TextButton(onClick = { navigation.pending = null }) { Text("Остаться") } }) }
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun WorkspacePage(title: String, subtitle: String = "", nav: NavController? = null, action: (@Composable () -> Unit)? = null, content: LazyListScope.() -> Unit) {
     Scaffold(containerColor = MaterialTheme.colorScheme.background, topBar = {
-        TopAppBar(title = { Column { Text(title, style = MaterialTheme.typography.headlineSmall); if(subtitle.isNotEmpty()) Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) } },
-            navigationIcon = { if(nav != null) IconButton(onClick = { nav.navigateUp() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack,"Назад") } },
-            actions = { action?.invoke() }, colors = hiroTopAppBarColors())
-    }) { padding -> LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp), content = content) }
+        WorkspaceHeader(title,subtitle,onBack=nav?.let{controller->{controller.navigateUp()}},actions={action?.invoke()})
+    }) { padding -> LazyColumn(Modifier.fillMaxSize().padding(padding).imePadding(), contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(16.dp), content = content) }
+}
+
+/** Content-driven height: long titles and Android font scaling must not clip. */
+@Composable
+internal fun WorkspaceHeader(title:String,subtitle:String="",onBack:(()->Unit)?=null,statusInset:Boolean=true,actions:@Composable RowScope.()->Unit={}) {
+    Surface(color=MaterialTheme.colorScheme.surfaceContainerLowest) {
+        Row(Modifier.fillMaxWidth().then(if(statusInset)Modifier.statusBarsPadding()else Modifier).padding(start=if(onBack==null)21.dp else 9.dp,end=9.dp,top=18.dp,bottom=16.dp),verticalAlignment=Alignment.CenterVertically) {
+            if(onBack!=null)IconButton(onClick=onBack){Icon(Icons.AutoMirrored.Filled.ArrowBack,"Назад",modifier=Modifier.size(20.dp))}
+            Column(Modifier.weight(1f).padding(end=8.dp),verticalArrangement=Arrangement.spacedBy(5.dp)) {
+                Text(title,style=MaterialTheme.typography.headlineSmall)
+                if(subtitle.isNotEmpty())Text(subtitle,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            actions()
+        }
+    }
+}
+
+@Composable
+internal fun WorkspaceSearch(value:String,onValueChange:(String)->Unit,label:String) {
+    OutlinedTextField(value,onValueChange,placeholder={Text(label)},leadingIcon={Icon(Icons.Default.Search,null,modifier=Modifier.size(20.dp))},singleLine=true,
+        shape=RoundedCornerShape(13.dp),modifier=Modifier.fillMaxWidth(),colors=OutlinedTextFieldDefaults.colors(unfocusedBorderColor=MaterialTheme.colorScheme.outlineVariant,unfocusedContainerColor=MaterialTheme.colorScheme.surfaceContainerLowest,focusedContainerColor=MaterialTheme.colorScheme.surfaceContainerLowest))
+}
+
+@Composable
+internal fun WorkspaceGroup(content:@Composable ColumnScope.()->Unit) {
+    Surface(shape=RoundedCornerShape(17.dp),color=MaterialTheme.colorScheme.surfaceContainerLowest) { Column(content=content) }
 }
 
 @Composable
@@ -112,16 +149,16 @@ internal fun WorkspaceCard(content: @Composable ColumnScope.() -> Unit) {
 @Composable
 internal fun WorkspaceInfo(text: String, error: Boolean = false) {
     Surface(color = if(error) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.primaryContainer, shape = RoundedCornerShape(13.dp)) {
-        Text(text, Modifier.fillMaxWidth().padding(14.dp), style = MaterialTheme.typography.bodyMedium)
+        Text(text, Modifier.fillMaxWidth().padding(14.dp), style = MaterialTheme.typography.bodySmall)
     }
 }
 @Composable
-internal fun WorkspaceRow(title: String, subtitle: String, icon: ImageVector = Icons.Default.ChevronRight, enabled: Boolean = true, click: () -> Unit) {
-    Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceContainerLowest) {
-        Row(Modifier.fillMaxWidth().clickable(enabled = enabled, onClick = click).padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Icon(icon, null, tint = MaterialTheme.colorScheme.primary)
+internal fun WorkspaceRow(title: String, subtitle: String, icon: ImageVector = Icons.Default.ChevronRight, enabled: Boolean = true, grouped:Boolean=false, click: () -> Unit) {
+    Surface(shape = RoundedCornerShape(if(grouped)0.dp else 17.dp), color = MaterialTheme.colorScheme.surfaceContainerLowest) {
+        Row(Modifier.fillMaxWidth().clickable(enabled = enabled, onClick = click).heightIn(min=67.dp).padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Icon(icon, null, tint = MaterialTheme.colorScheme.primary,modifier=Modifier.size(20.dp))
             Column(Modifier.weight(1f)) { Text(title, style = MaterialTheme.typography.titleMedium); Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-            Icon(Icons.Default.ChevronRight, null)
+            Icon(Icons.Default.ChevronRight, null,tint=MaterialTheme.colorScheme.onSurfaceVariant,modifier=Modifier.size(20.dp))
         }
     }
 }
@@ -135,8 +172,8 @@ internal fun WorkspaceCallsContent(nav: NavController, calls: ViewModel, padding
     LaunchedEffect(live) { while(true) { journal = synchronized(BaresipService.callHistory) { BaresipService.callHistory.toList().asReversed() }; delay(1500) } }
     LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         item { WorkspaceInfo(if(agents.any { it.status == BaresipService.circleGreen.getValue(BaresipService.colorblind) }) "Рабочая SIP-связь зарегистрирована" else "Рабочая связь не зарегистрирована. Проверьте интернет и параметры подключения.") }
-        item { Button(onClick = { nav.navigate("workspace-dialer") }, Modifier.fillMaxWidth()) { Icon(Icons.Default.Dialpad,null); Spacer(Modifier.width(8.dp)); Text("Набрать номер") } }
-        item { OutlinedTextField(query, { query = it }, label = { Text("Поиск по номеру") }, modifier = Modifier.fillMaxWidth(), singleLine = true) }
+        item { Button(onClick = { nav.navigate("workspace-dialer") }, Modifier.fillMaxWidth(),shape=RoundedCornerShape(13.dp)) { Icon(Icons.Default.Dialpad,null); Spacer(Modifier.width(8.dp)); Text("Набрать номер") } }
+        item { WorkspaceSearch(query,{query=it},"Поиск по номеру") }
         item { Text("Журнал этого смартфона", style = MaterialTheme.typography.titleLarge) }
         if(journal.isEmpty()) item { WorkspaceCard { Text("Звонков пока нет"); Text("Здесь появится история ваших входящих и исходящих звонков.", style = MaterialTheme.typography.bodyMedium) } }
         items(journal.filter { it.peerUri.contains(query,true) }.take(100)) { call ->
@@ -151,7 +188,8 @@ internal fun WorkspaceCallsContent(nav: NavController, calls: ViewModel, padding
 
 fun NavGraphBuilder.workspaceRoutes(nav: NavController, calls: ViewModel, auth: HiroAuthViewModel, session: HiroSession) {
     composable("workspace-settings") { WorkspaceSettings(nav, session) }
-    composable("workspace-receive") { WorkspacePage("Приём звонков и SMS","Только вы · на всех ваших устройствах",nav) { item { GatewaySIMPreferences(auth) } } }
+    composable("workspace-receive") { WorkspacePage("Какие SMS получаю","Приём сообщений — отдельно от приоритета звонков",nav) { item { GatewaySIMPreferences(auth) } } }
+    composable("workspace-priority?caller={caller}",arguments=listOf(navArgument("caller"){type=NavType.StringType;defaultValue=""})) { entry -> ReceptionPriorityScreen(nav,auth,entry.arguments?.getString("caller").orEmpty()) }
     composable("workspace-sync") { PersonalContactSettings(nav,auth) }
     composable("workspace-profile") { WorkspaceProfile(nav,calls,auth,session) }
     composable("workspace-appearance") { WorkspaceAppearance(nav) }
@@ -172,7 +210,8 @@ private fun WorkspaceSettings(nav: NavController, session: HiroSession) {
     var query by rememberSaveable { mutableStateOf("") }
     data class Setting(val section: String,val name: String,val detail: String,val route: String,val icon: ImageVector,val keywords: String="")
     val rows = listOf(
-        Setting("Связь","Приём звонков и SMS","Выбор SIM общего телефона-шлюза","workspace-receive",Icons.Default.PhoneCallback,"номер симка SIM входящие"),
+        Setting("Связь","Мой приоритет звонков","Получать раньше — без отказа от других линий","workspace-priority",Icons.Default.PhoneCallback,"номер симка SIM входящие первым правило"),
+        Setting("Связь","Какие SMS получаю","Номера и SIM для входящих сообщений","workspace-receive",Icons.Default.Sms,"номер симка SIM сообщения"),
         Setting("Связь","Исходящие звонки и SMS","Линия звонка и SIM сообщения","workspace-outgoing",Icons.Default.PhoneForwarded,"номер симка SIM исходящие"),
         Setting("Связь","Гарнитура и звук","Громкость, микрофон и аудиопараметры","audio",Icons.Default.Headset,"не слышно наушники звук"),
         Setting("Связь","Уведомления и работа в фоне","Звук уведомлений и разрешения Android","workspace-notifications",Icons.Default.Notifications,"батарея фон разрешения"),
@@ -183,8 +222,14 @@ private fun WorkspaceSettings(nav: NavController, session: HiroSession) {
         Setting("Помощь","Помощь и проверка связи","Диагностика, разрешения и обновления","workspace-help",Icons.Default.HelpOutline,"не работает версия обновление")
     ).filter { (session.user.role == "admin" || it.section != "Для всей организации") && (it.name+it.detail+it.keywords).contains(query,true) }
     WorkspacePage("Настройки","Личные параметры и организация") {
-        item { OutlinedTextField(query,{query=it},label={Text("Найти настройку")},modifier=Modifier.fillMaxWidth(),singleLine=true) }
-        rows.groupBy { it.section }.forEach { (group,entries) -> item { Text(group,style=MaterialTheme.typography.titleLarge) }; items(entries) { row -> WorkspaceRow(row.name,row.detail,row.icon) { nav.navigate(row.route) } } }
+        item { WorkspaceSearch(query,{query=it},"Найти настройку") }
+        rows.groupBy { it.section }.forEach { (group,entries) ->
+            item { Text(group,style=MaterialTheme.typography.titleLarge) }
+            item { WorkspaceGroup { entries.forEachIndexed { i,row ->
+                WorkspaceRow(row.name,row.detail,row.icon,grouped=true) { nav.navigate(row.route) }
+                if(i<entries.lastIndex)HorizontalDivider(color=MaterialTheme.colorScheme.outlineVariant,thickness=0.5.dp)
+            } } }
+        }
         if(rows.isEmpty()) item { Text("Настройка не найдена. Попробуйте «SIM», «микрофон» или «контакты».") }
     }
 }

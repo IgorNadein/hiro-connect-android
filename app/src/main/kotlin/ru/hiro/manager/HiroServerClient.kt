@@ -274,6 +274,18 @@ class HiroServerClient {
         request(resolve(session.apiBaseUrl + "/", "routing/lines"), bearerToken = session.accessToken)
     )
 
+    fun receptionPreferences(session: HiroSession): HiroReceptionPreferences = decode(
+        request(resolve(session.apiBaseUrl + "/", "routing/reception"), bearerToken = session.accessToken)
+    )
+    fun saveReceptionPreferences(session: HiroSession, rules: List<HiroReceptionRule>, revision: Long): HiroReceptionPreferences = decode(
+        request(resolve(session.apiBaseUrl + "/", "routing/reception"), method = "PUT", bearerToken = session.accessToken,
+            body = hiroRoutingJson.encodeToString(HiroReceptionUpdate(rules)), revision = revision)
+    )
+    fun previewReception(session: HiroSession, lineId: String, callerNumber: String): HiroReceptionPreview = decode(
+        request(resolve(session.apiBaseUrl + "/", "routing/reception/preview"), method = "POST", bearerToken = session.accessToken,
+            body = hiroRoutingJson.encodeToString(HiroReceptionPreviewRequest(lineId, callerNumber)))
+    )
+
     fun simSubscriptions(session: HiroSession): HiroSIMSubscriptions = decode(
         request(resolve(session.apiBaseUrl + "/", "routing/subscriptions"), bearerToken = session.accessToken)
     )
@@ -347,7 +359,8 @@ class HiroServerClient {
             val status = connection.responseCode
             val response = readLimited(if (status in 200..299) connection.inputStream else connection.errorStream)
             if (status !in 200..299) {
-                val serverMessage = runCatching { json.decodeFromString<HiroApiErrorEnvelope>(response).error?.message }.getOrNull()
+                val serverError = runCatching { json.decodeFromString<HiroApiErrorEnvelope>(response).error }.getOrNull()
+                val serverMessage = serverError?.message
                 val message = when (status) {
                     401 -> if (bearerToken == null) "Неверный логин или пароль" else "Сессия завершена"
                     429 -> "Слишком много попыток. Попробуйте позже"
@@ -356,7 +369,7 @@ class HiroServerClient {
                     503 -> serverMessage ?: "Сервис временно недоступен"
                     else -> serverMessage ?: "Сервер вернул ошибку $status"
                 }
-                throw HiroServerException(if (status == 401) "unauthorized" else "http_error", message)
+                throw HiroServerException(if (status == 401) "unauthorized" else serverError?.code ?: "http_error", message)
             }
             response
         } catch (error: HiroServerException) {

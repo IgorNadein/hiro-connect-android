@@ -11,6 +11,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Shapes
+import androidx.compose.material3.Typography
 import androidx.compose.material3.TopAppBarColors
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.darkColorScheme
@@ -25,6 +26,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.core.view.WindowCompat
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -147,7 +151,18 @@ fun AppTheme(
             onDispose {}
         }
 
-    MaterialTheme(colorScheme = colorScheme, shapes = Shapes(small = RoundedCornerShape(12.dp), medium = RoundedCornerShape(16.dp), large = RoundedCornerShape(24.dp))) {
+    val typography = Typography(
+        headlineSmall = TextStyle(fontSize=26.sp,lineHeight=32.sp,fontWeight=FontWeight.SemiBold),
+        titleLarge = TextStyle(fontSize=17.sp,lineHeight=23.sp,fontWeight=FontWeight.SemiBold),
+        titleMedium = TextStyle(fontSize=14.sp,lineHeight=20.sp,fontWeight=FontWeight.Medium),
+        bodyLarge = TextStyle(fontSize=14.sp,lineHeight=21.sp),
+        bodyMedium = TextStyle(fontSize=14.sp,lineHeight=21.sp),
+        bodySmall = TextStyle(fontSize=12.sp,lineHeight=18.sp),
+        labelLarge = TextStyle(fontSize=14.sp,lineHeight=20.sp,fontWeight=FontWeight.Medium),
+        labelMedium = TextStyle(fontSize=12.sp,lineHeight=18.sp,fontWeight=FontWeight.Medium),
+        labelSmall = TextStyle(fontSize=11.sp,lineHeight=16.sp,fontWeight=FontWeight.Medium)
+    )
+    MaterialTheme(colorScheme = colorScheme, typography=typography, shapes = Shapes(extraSmall=RoundedCornerShape(12.dp),small = RoundedCornerShape(12.dp), medium = RoundedCornerShape(16.dp), large = RoundedCornerShape(18.dp), extraLarge=RoundedCornerShape(16.dp))) {
         Surface(
             modifier = Modifier.fillMaxSize(),
             color = MaterialTheme.colorScheme.background,

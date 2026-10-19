@@ -193,28 +193,10 @@ private fun GatewayMessagesScreen(navController: NavController, session: HiroSes
         modifier = Modifier.fillMaxSize().imePadding(),
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text(
-                            text = activeAddress ?: "Сообщения",
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = if (activeAddress == null) "SMS через телефон-шлюз" else "Через сервер",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                },
-                navigationIcon = {
-                    if(activeAddress != null)
-                    IconButton(onClick = {
-                        leave()
-                    }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
-                    }
-                },
+            WorkspaceHeader(
+                title=activeAddress ?: "Сообщения",
+                subtitle=if(activeAddress==null)"SMS через телефон-шлюз" else "Через сервер",
+                onBack=if(activeAddress!=null){{leave()}}else null,
                 actions = {
                     if(activeAddress == null) {
                         IconButton(onClick={navController.navigate("chats")}){Icon(Icons.AutoMirrored.Filled.Chat,"Открыть SIP-чаты")}
@@ -226,10 +208,7 @@ private fun GatewayMessagesScreen(navController: NavController, session: HiroSes
                     }) {
                         Icon(Icons.Default.Refresh, contentDescription = "Обновить")
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainerLowest
-                )
+                }
             )
         },
         bottomBar = {

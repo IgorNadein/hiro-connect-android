@@ -10,6 +10,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -54,6 +55,8 @@ internal fun ClientDirectoryScreen(nav: NavController,auth: HiroAuthViewModel,us
     var busy by remember{mutableStateOf(false)}
     var error by remember{mutableStateOf("")}
     var page by rememberSaveable{mutableStateOf("list")}
+    val listState=rememberLazyListState()
+    LaunchedEffect(page){listState.scrollToItem(0)}
     var showPersonal by rememberSaveable{mutableStateOf(initialPersonal)}
     var search by rememberSaveable{mutableStateOf("")}
     var selected by rememberSaveable{mutableStateOf("")}
@@ -101,17 +104,16 @@ internal fun ClientDirectoryScreen(nav: NavController,auth: HiroAuthViewModel,us
     val permission=rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()){granted->if(granted)scan()else error="Чтение контактов не разрешено. Можно добавить контакт вручную."}
 
     val entries=if(showPersonal)personal.map{DirectoryEntry(it.number,it.name,directory.clients.find{c->c.number==it.number})} else directory.clients.map{DirectoryEntry(it.number,it.name,it)}
-    val title=when(page){"list"->"Клиенты";"card"->if(shared!=null)"Клиент команды" else "Личный контакт";"new"->"Личный контакт";"edit"->"Редактировать контакт";"promote"->"Сделать общим клиентом";"review"->"Открыть контакт команде?";"demote"->"Убрать из общих клиентов?";"priority"->"Приоритет и выбор линии";"incoming"->"Входящие: очередь";"outgoing"->"Исходящие: линия";"rules"->"Особые правила";"preview"->"Проверка приоритета";"import"->"Выбрать из телефона";else->"Клиенты"}
-    Scaffold(containerColor=MaterialTheme.colorScheme.background,topBar={TopAppBar(title={Column{Text(title,style=MaterialTheme.typography.headlineSmall);if(page=="list")Text("Клиенты — общие, адресная книга — личная",style=MaterialTheme.typography.bodySmall)}},
-        navigationIcon={if(page!="list")IconButton(onClick={move(if(page in setOf("incoming","outgoing","rules","preview"))"priority" else if(page=="review")"promote" else if(page in setOf("new","import"))"list" else "card")}){Icon(Icons.AutoMirrored.Filled.ArrowBack,"Назад")}},
-        actions={if(page=="list")IconButton(onClick={work{reload()}},enabled=!busy){Icon(Icons.Default.Refresh,"Обновить")}},colors=hiroTopAppBarColors())}){padding->
-        LazyColumn(Modifier.fillMaxSize().padding(padding).imePadding(),contentPadding=PaddingValues(18.dp),verticalArrangement=Arrangement.spacedBy(14.dp)){
+    val title=when(page){"list"->"Клиенты";"card"->if(shared!=null)"Клиент команды" else "Личный контакт";"new"->"Личный контакт";"edit"->"Редактировать контакт";"promote"->"Сделать общим клиентом";"review"->"Открыть контакт команде?";"demote"->"Убрать из общих клиентов?";"priority"->"Очередь и исходящая линия";"incoming"->"Входящие: очередь";"outgoing"->"Исходящие: линия";"rules"->"Особые правила";"preview"->"Проверка приоритета";"import"->"Выбрать из телефона";else->"Клиенты"}
+    Scaffold(containerColor=MaterialTheme.colorScheme.background,topBar={WorkspaceHeader(title,if(page=="list")"Клиенты — общие, адресная книга — личная" else "",onBack=if(page=="list")null else {{move(if(page in setOf("incoming","outgoing","rules","preview"))"priority" else if(page=="review")"promote" else if(page in setOf("new","import"))"list" else "card")}},
+        actions={if(page=="list")IconButton(onClick={work{reload()}},enabled=!busy){Icon(Icons.Default.Refresh,"Обновить")}})}){padding->
+        LazyColumn(Modifier.fillMaxSize().padding(padding).imePadding(),state=listState,contentPadding=PaddingValues(18.dp),verticalArrangement=Arrangement.spacedBy(14.dp)){
             if(busy)item{LinearProgressIndicator(Modifier.fillMaxWidth())}
             if(error.isNotEmpty())item{WorkspaceInfo(error,true);TextButton(enabled=!busy,onClick={work{reload()}}){Text("Обновить данные, сохранив черновик")}}
             if(page=="list"){
-                item{Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp)){FilterChip(!showPersonal,{showPersonal=false},label={Text("Клиенты команды")});FilterChip(showPersonal,{showPersonal=true},label={Text("Мои контакты")})}}
+                item{FlowRow(horizontalArrangement=Arrangement.spacedBy(8.dp)){FilterChip(!showPersonal,{showPersonal=false},label={Text("Клиенты команды")},colors=FilterChipDefaults.filterChipColors(selectedContainerColor=MaterialTheme.colorScheme.primaryContainer,selectedLabelColor=MaterialTheme.colorScheme.primary));FilterChip(showPersonal,{showPersonal=true},label={Text("Мои контакты")},colors=FilterChipDefaults.filterChipColors(selectedContainerColor=MaterialTheme.colorScheme.primaryContainer,selectedLabelColor=MaterialTheme.colorScheme.primary))}}
                 item{Text(if(showPersonal)"Личная книга · ${user.displayName}. Другие сотрудники не видят личные записи." else "Клиенты видны всем авторизованным сотрудникам организации.",style=MaterialTheme.typography.bodySmall)}
-                item{OutlinedTextField(search,{search=it},label={Text("Имя или номер")},singleLine=true,modifier=Modifier.fillMaxWidth())}
+                item{WorkspaceSearch(search,{search=it},"Имя или номер")}
                 if(showPersonal)item{WorkspaceRow("Синхронизация контактов",if(auth.personalContactsSyncEnabled())"Включена · только в вашу книгу" else "Выключена · можно включить в настройках",Icons.Default.Sync){nav.navigate("workspace-sync")}}
                 val filtered=entries.filter{it.name.contains(search,true)||it.number.contains(search)}.sortedWith(compareBy<DirectoryEntry>{it.name.lowercase()}.thenBy{it.number})
                 if(loaded&&filtered.isEmpty())item{WorkspaceCard{Text(if(search.isBlank())"Здесь пока нет контактов" else "По этому запросу контактов нет");Text("Можно добавить запись вручную или выбрать её из телефона.")}}
@@ -127,9 +129,10 @@ internal fun ClientDirectoryScreen(nav: NavController,auth: HiroAuthViewModel,us
                     Button(onClick={nav.navigate("workspace-dialer?number=${Uri.encode(selected)}")},enabled=canEdit,modifier=Modifier.weight(1f)){Text("Позвонить")}
                     OutlinedButton(onClick={nav.navigate("gateway-messages?address=${Uri.encode(selected)}")},enabled=canEdit,modifier=Modifier.weight(1f)){Text("Написать")}
                 }}
+                if(canEdit)item{WorkspaceRow("Получать звонки этого номера раньше","Моё предпочтение, не назначение для всей команды",Icons.Default.PhoneCallback){nav.navigate("workspace-priority?caller=${Uri.encode(selected)}")}}
                 if(shared!=null){
                     item{WorkspaceCard{Text("Кто привёл клиента",style=MaterialTheme.typography.titleMedium);Text(clientOriginLabel(shared));Text("Необязательная история появления. Это не ответственный менеджер и не получатель звонка.",style=MaterialTheme.typography.bodySmall)}}
-                    item{WorkspaceRow("Приоритет и выбор линии","Входящие — очередь, исходящие — источник",Icons.Default.Route){page="priority"}}
+                    item{WorkspaceRow("Очередь обращений и исходящая линия","Общие настройки клиента, не выбор менеджера",Icons.Default.Route){page="priority"}}
                     if(canEdit)item{TextButton(onClick={edit("edit")}){Text("Изменить данные клиента")}}
                     if(canEdit&&privateReady)item{TextButton(onClick={page="demote"}){Text("Убрать из общих клиентов")}}
                 }else{
@@ -176,7 +179,7 @@ internal fun ClientDirectoryScreen(nav: NavController,auth: HiroAuthViewModel,us
                 }},modifier=Modifier.fillMaxWidth()){Text("Убрать из клиентов для всех")}}
             }
             if(page=="priority"){
-                item{WorkspaceInfo("Изменения правил клиента действуют для всей организации. Текущие разговоры не прерываются.")}
+                item{WorkspaceInfo("Здесь меняется очередь самих обращений и исходящая линия для всей организации. Чтобы получать звонки этого номера раньше коллег, используйте «Мой приоритет звонков». Текущие разговоры не прерываются.")}
                 item{WorkspaceRow("Входящие: порядок обслуживания",shared?.rules?.let{basePriority(it,"inbound")}?.let{"Базовый приоритет: $it"}?:"По правилам организации; клиентское преимущество сохраняется",Icons.Default.PhoneCallback){draftRules=shared?.rules?:emptyList();score=(basePriority(draftRules,"inbound")?:50).toString();page="incoming"}}
                 item{WorkspaceRow("Исходящие: выбор линии",shared?.rules?.let{basePriority(it,"outbound")}?.let{"Базовый приоритет: $it"}?:"По правилам организации",Icons.Default.PhoneForwarded){draftRules=shared?.rules?:emptyList();score=(basePriority(draftRules,"outbound")?:50).toString();page="outgoing"}}
                 item{WorkspaceRow("Особые правила","Линия → SIM → устройство → тип шлюза",Icons.Default.Tune){page="rules"}}

@@ -501,7 +501,7 @@ private fun MainScreen(
         modifier = Modifier.fillMaxSize().imePadding(),
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
-            Column(modifier = Modifier.background(MaterialTheme.colorScheme.background)) {
+            Column(modifier = Modifier.background(MaterialTheme.colorScheme.surfaceContainerLowest)) {
                 Spacer(Modifier.statusBarsPadding())
                 TopAppBar(
                     viewModel = viewModel,
@@ -543,8 +543,7 @@ private fun TopAppBar(
     val activeCalls by viewModel.calls.collectAsState()
     val hasActiveCall = activeCalls.isNotEmpty()
     if (!hasActiveCall) {
-        TopAppBar(title = { Column { Text("Звонки", style = MaterialTheme.typography.headlineSmall); Text(serverUser.displayName, style = MaterialTheme.typography.bodySmall) } },
-            colors = hiroTopAppBarColors(), windowInsets = WindowInsets(0,0,0,0),
+        WorkspaceHeader("Звонки",serverUser.displayName,statusInset=false,
             actions = { IconButton(onClick = { navController.navigate("workspace-settings") }) { Icon(Icons.Outlined.Settings,"Настройки") } })
         return
     }
