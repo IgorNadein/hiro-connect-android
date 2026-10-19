@@ -275,6 +275,7 @@ class MainActivity : ComponentActivity() {
                         onOIDCSignIn = authViewModel::signInWithOIDC
                     )
                     is HiroAuthState.SignedIn -> {
+                        PersonalContactsConsent(authViewModel, state.session)
                         navController = rememberNavController()
 
                         LaunchedEffect(key1 = viewModel) {
@@ -304,7 +305,9 @@ class MainActivity : ComponentActivity() {
                             }
                         }
 
+                        HiroWorkspaceShell(navController, viewModel) {
                         NavHost(navController, startDestination = "main") {
+                            workspaceRoutes(navController, viewModel, authViewModel, state.session)
                             mainScreenRoute(
                                 navController = navController,
                                 viewModel = viewModel,
@@ -333,6 +336,7 @@ class MainActivity : ComponentActivity() {
                             chatsScreenRoute(navController)
                             chatScreenRoute(navController, viewModel)
                             gatewayMessagesScreenRoute(navController, state.session)
+                        }
                         }
                     }
                 }

@@ -19,9 +19,13 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -38,11 +42,13 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -52,6 +58,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import androidx.navigation.NavGraphBuilder
+import androidx.navigation.NavType
+import androidx.navigation.navArgument
 import androidx.navigation.compose.composable
 import java.text.DateFormat
 import java.time.Instant
@@ -67,14 +75,14 @@ fun NavGraphBuilder.gatewayMessagesScreenRoute(
     navController: NavController,
     session: HiroSession
 ) {
-    composable("gateway-messages") {
-        GatewayMessagesScreen(navController, session)
+    composable("gateway-messages?address={address}",arguments=listOf(navArgument("address"){type=NavType.StringType;nullable=true;defaultValue=null})) { entry ->
+        androidx.compose.runtime.key(session.apiBaseUrl,session.user.id) { GatewayMessagesScreen(navController, session, entry.arguments?.getString("address")) }
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun GatewayMessagesScreen(navController: NavController, session: HiroSession) {
+private fun GatewayMessagesScreen(navController: NavController, session: HiroSession, initialAddress: String? = null) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val client = remember { HiroServerClient() }
     val syncStore = remember { GatewayMessageSyncStore(context) }
@@ -85,13 +93,25 @@ private fun GatewayMessagesScreen(navController: NavController, session: HiroSes
     var sendSIM by remember { mutableStateOf<Long?>(null) }
     var simReady by remember { mutableStateOf(false) }
     var simMenu by remember { mutableStateOf(false) }
-    var selectedAddress by remember { mutableStateOf<String?>(null) }
+    var selectedAddress by rememberSaveable { mutableStateOf<String?>(initialAddress?.takeIf { normalizeClientNumber(it)!=null }) }
     var newAddress by remember { mutableStateOf("") }
-    var draft by remember { mutableStateOf("") }
+    var draft by rememberSaveable { mutableStateOf("") }
     var loading by remember { mutableStateOf(true) }
     var sending by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var refreshKey by remember { mutableStateOf(0) }
+    val navigation = LocalWorkspaceNavigation.current
+    var leaveThread by remember { mutableStateOf(false) }
+    var retryId by rememberSaveable { mutableStateOf("") }
+    var retryPayload by rememberSaveable { mutableStateOf("") }
+    LaunchedEffect(draft) { navigation?.dirty = draft.isNotBlank() }
+    LaunchedEffect(sending) { navigation?.busy = sending }
+    DisposableEffect(Unit) { onDispose { navigation?.dirty = false; navigation?.busy = false } }
+    fun leave() {
+        if(sending) return
+        if(draft.isNotBlank()) { leaveThread = true; return }
+        if(selectedAddress != null) selectedAddress = null else navController.navigateUp()
+    }
 
     suspend fun refresh() {
         var gatewayError: String? = null
@@ -134,12 +154,7 @@ private fun GatewayMessagesScreen(navController: NavController, session: HiroSes
     }
 
     BackHandler {
-        if (selectedAddress != null) {
-            selectedAddress = null
-            draft = ""
-        } else {
-            navController.navigateUp()
-        }
+        leave()
     }
 
     val activeAddress = selectedAddress
@@ -193,13 +208,18 @@ private fun GatewayMessagesScreen(navController: NavController, session: HiroSes
                     }
                 },
                 navigationIcon = {
+                    if(activeAddress != null)
                     IconButton(onClick = {
-                        if (activeAddress != null) selectedAddress = null else navController.navigateUp()
+                        leave()
                     }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
                     }
                 },
                 actions = {
+                    if(activeAddress == null) {
+                        IconButton(onClick={navController.navigate("chats")}){Icon(Icons.AutoMirrored.Filled.Chat,"Открыть SIP-чаты")}
+                        IconButton(onClick={navController.navigate("workspace-receive")}){Icon(Icons.Default.Settings,"Выбор SIM для приёма SMS")}
+                    }
                     IconButton(onClick = {
                         loading = true
                         refreshKey++
@@ -242,6 +262,9 @@ private fun GatewayMessagesScreen(navController: NavController, session: HiroSes
                         onClick = {
                             val outgoing = draft
                             val outgoingSIM = sendSIM ?: return@IconButton
+                            val payload = java.security.MessageDigest.getInstance("SHA-256").digest((activeAddress+"\n"+outgoingSIM+"\n"+outgoing).toByteArray()).joinToString(""){"%02x".format(it)}
+                            if(retryId.isEmpty() || retryPayload != payload) { retryId = UUID.randomUUID().toString(); retryPayload = payload }
+                            val messageId = retryId
                             draft = ""
                             sending = true
                             error = null
@@ -250,12 +273,13 @@ private fun GatewayMessagesScreen(navController: NavController, session: HiroSes
                                     withContext(Dispatchers.IO) {
                                         client.sendSms(
                                             session = session,
-                                            clientMessageId = UUID.randomUUID().toString(),
+                                            clientMessageId = messageId,
                                             address = activeAddress,
                                             text = outgoing,
                                             subscriptionId = outgoingSIM
                                         )
                                     }
+                                    retryId = ""; retryPayload = ""
                                     refresh()
                                 } catch (failure: CancellationException) { throw failure }
                                 catch (failure: HiroServerException) {
@@ -305,6 +329,9 @@ private fun GatewayMessagesScreen(navController: NavController, session: HiroSes
             )
         }
     }
+    if(leaveThread) AlertDialog(onDismissRequest = { leaveThread=false }, title = { Text("Неотправленное сообщение") }, text = { Text("Текст не будет отправлен. Уйти без сохранения черновика?") },
+        confirmButton = { TextButton(onClick={draft="";leaveThread=false;selectedAddress=null}){Text("Не сохранять")}},
+        dismissButton = { TextButton(onClick={leaveThread=false}){Text("Остаться")}})
 }
 
 @Composable
@@ -356,7 +383,7 @@ private fun ConversationList(
                 items(conversations, key = { it.address }) { message ->
                     Card(
                         modifier = Modifier.fillMaxWidth().clickable { onOpen(message.address) },
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLowest),
                         shape = RoundedCornerShape(18.dp)
                     ) {
                         Column(modifier = Modifier.padding(16.dp)) {

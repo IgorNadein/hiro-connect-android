@@ -131,6 +131,9 @@ private fun UpdatesCard(
 ) {
     val context = LocalContext.current
     val current = remember { ConnectGitHubUpdates.currentVersion(context) }
+    val allowInstallMessage = stringResource(R.string.updates_allow_install)
+    val installFailedMessage = stringResource(R.string.updates_install_failed)
+    val browserFailedMessage = stringResource(R.string.updates_browser_failed)
     val release = state.release
     val available = release != null && release.versionCode > current.second
     var installMessage by remember { mutableStateOf<String?>(null) }
@@ -213,11 +216,11 @@ private fun UpdatesCard(
                             installMessage = if (installerOpened) {
                                 null
                             } else {
-                                context.getString(R.string.updates_allow_install)
+                                allowInstallMessage
                             }
                         }.onFailure { error ->
                             installMessage = error.message
-                                ?: context.getString(R.string.updates_install_failed)
+                                ?: installFailedMessage
                         }
                     }) {
                         Text(stringResource(R.string.updates_install))
@@ -242,7 +245,7 @@ private fun UpdatesCard(
                     runCatching {
                         context.startActivity(Intent(Intent.ACTION_VIEW, uri))
                     }.onFailure {
-                        installMessage = context.getString(R.string.updates_browser_failed)
+                        installMessage = browserFailedMessage
                     }
                 }) {
                     Text(stringResource(R.string.updates_whats_new))

@@ -287,15 +287,24 @@ class HiroServerClient {
         request(resolve(session.apiBaseUrl + "/", "routing/clients"), bearerToken = session.accessToken)
     )
 
+    fun personalContacts(session: HiroSession, sourceId: String): HiroPersonalContacts = decode(
+        request(resolve(session.apiBaseUrl + "/", "contacts?source_id=${URLEncoder.encode(sourceId, "UTF-8")}"), bearerToken = session.accessToken)
+    )
+
+    fun syncPersonalContacts(session: HiroSession, sourceId: String, contacts: List<HiroPersonalContact>, revision: Long): HiroPersonalContacts = decode(
+        request(resolve(session.apiBaseUrl + "/", "contacts?source_id=${URLEncoder.encode(sourceId, "UTF-8")}"), method = "PUT", bearerToken = session.accessToken,
+            body = hiroRoutingJson.encodeToString(HiroPersonalContactsUpdate(contacts)), revision = revision)
+    )
+
     fun policies(session: HiroSession): HiroRoutingPolicies = decode(
         request(resolve(session.apiBaseUrl + "/", "routing/policies"), bearerToken = session.accessToken)
     )
 
-    fun saveClient(session: HiroSession, number: String, name: String, rules: List<HiroPriorityRule>, revision: Long, remove: Boolean): HiroClientDirectory {
+    fun saveClient(session: HiroSession, number: String, name: String, rules: List<HiroPriorityRule>, revision: Long, remove: Boolean, externalOrigin: Boolean = false): HiroClientDirectory {
         val canonical = normalizeClientNumber(number) ?: throw HiroServerException("invalid_number", "Укажите номер с кодом страны, например +7…")
         return decode(request(resolve(session.apiBaseUrl + "/", "routing/clients/$canonical"),
             method = if (remove) "DELETE" else "PUT", bearerToken = session.accessToken,
-            body = if (remove) null else hiroRoutingJson.encodeToString(HiroClientUpdate(name, rules)),
+            body = if (remove) null else if (externalOrigin) hiroRoutingJson.encodeToString(HiroExternalClientUpdate(name, rules)) else hiroRoutingJson.encodeToString(HiroClientUpdate(name, rules)),
             revision = revision))
     }
 

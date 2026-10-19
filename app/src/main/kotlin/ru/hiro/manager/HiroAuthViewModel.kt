@@ -39,7 +39,16 @@ class HiroAuthViewModel(application: Application) : AndroidViewModel(application
     val browserRequests: SharedFlow<String> = _browserRequests.asSharedFlow()
     private var refreshJob: Job? = null
 
+    private val personalSync = PersonalContactSync(application, this, viewModelScope)
+    val personalContactsStatus: StateFlow<String> = personalSync.status
+    val personalContactsSourceId: String get() = personalSync.sourceId
+    fun personalContactsSyncEnabled(): Boolean = personalSync.enabled()
+    fun setPersonalContactsSyncEnabled(enabled: Boolean) = personalSync.setEnabled(enabled)
+    fun personalContactsPromptNeeded(): Boolean = personalSync.promptNeeded()
+    fun markPersonalContactsPromptSeen() = personalSync.markPromptSeen()
+
     init {
+        personalSync.start()
         viewModelScope.launch {
             val saved = withContext(Dispatchers.IO) { store.load() }
             if (saved == null) {

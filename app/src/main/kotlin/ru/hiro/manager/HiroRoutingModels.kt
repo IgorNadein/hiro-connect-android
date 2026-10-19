@@ -3,6 +3,8 @@ package ru.hiro.manager
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
 
 internal val hiroRoutingJson = Json { encodeDefaults = true; explicitNulls = false; ignoreUnknownKeys = true }
 
@@ -26,11 +28,16 @@ data class HiroPriorityRule(
     val direction: String = "both", val priority: Int = 50
 )
 @Serializable
-data class HiroClient(val number: String, val name: String, val rules: List<HiroPriorityRule>)
+data class HiroClient(val number: String, val name: String, val rules: List<HiroPriorityRule>,
+    @SerialName("introduced_by_user_id") val introducedByUserId: String? = null,
+    @SerialName("introduced_by_name") val introducedByName: String = "")
 @Serializable
 data class HiroClientDirectory(val revision: Long, val clients: List<HiroClient>)
 @Serializable
 data class HiroClientUpdate(val name: String, val rules: List<HiroPriorityRule>)
+@Serializable
+data class HiroExternalClientUpdate(val name: String, val rules: List<HiroPriorityRule>,
+    @SerialName("introduced_by_user_id") val origin: JsonElement = JsonNull)
 @Serializable
 data class HiroRoutingPolicies(val revision: Long, val policies: List<HiroPriorityRule>)
 @Serializable

@@ -92,6 +92,7 @@ import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Upload
 import androidx.compose.material3.BasicAlertDialog
 import androidx.compose.material3.Badge
+import androidx.compose.material3.Button
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.ButtonColors
 import androidx.compose.material3.Card
@@ -516,7 +517,7 @@ private fun MainScreen(
             }
         },
         bottomBar = {
-            if (!imeVisible) BottomBar(ctx, viewModel, navController)
+            // Persistent, task-based navigation is owned by HiroWorkspaceShell.
         },
         content = { contentPadding ->
             MainContent(navController, viewModel, contentPadding, serverSession.user.role)
@@ -539,7 +540,14 @@ private fun TopAppBar(
 ) {
     val ctx = LocalContext.current
     val currentMicIcon by viewModel.micIcon.collectAsState()
-    val hasActiveCall = Call.inCall()
+    val activeCalls by viewModel.calls.collectAsState()
+    val hasActiveCall = activeCalls.isNotEmpty()
+    if (!hasActiveCall) {
+        TopAppBar(title = { Column { Text("Звонки", style = MaterialTheme.typography.headlineSmall); Text(serverUser.displayName, style = MaterialTheme.typography.bodySmall) } },
+            colors = hiroTopAppBarColors(), windowInsets = WindowInsets(0,0,0,0),
+            actions = { IconButton(onClick = { navController.navigate("workspace-settings") }) { Icon(Icons.Outlined.Settings,"Настройки") } })
+        return
+    }
 
     val recOffImage = Icons.Filled.VoiceOverOff
     val recOnImage = Icons.Filled.RecordVoiceOver
@@ -1088,6 +1096,10 @@ private fun CallCard(
         }
     }
     Column {
+            if (call != null && call.showHangupButton.value && !call.conferenceCall) {
+                ConnectedCallPanel(ctx, viewModel, call)
+                return@Column
+            }
             CallUriRow(ctx, viewModel, call, dialerState)
             CallRow(ctx, viewModel, call, dialerState)
             if (call != null && call.showHangupButton.value && !call.conferenceCall) {
@@ -1120,6 +1132,45 @@ private fun CallCard(
         }
 }
 
+@Composable
+private fun ConnectedCallPanel(ctx: Context, viewModel: ViewModel, call: Call) {
+    var keypad by remember(call.callp) { mutableStateOf(false) }
+    var advanced by remember(call.callp) { mutableStateOf(false) }
+    val microphone by viewModel.micIcon.collectAsState()
+    val speaker by viewModel.isSpeakerOn.collectAsState()
+    Column(verticalArrangement = Arrangement.spacedBy(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(Utils.friendlyUri(ctx,call.peerUri,call.ua.account), style = MaterialTheme.typography.headlineSmall)
+        Text(if(call.callOnHold.value) "На удержании" else "Идёт разговор", color = MaterialTheme.colorScheme.primary)
+        CallTimer(call.duration().toLong())
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = {
+                val muted = !BaresipService.isMicMuted
+                BaresipService.setMicMute(muted)
+                viewModel.updateMicIcon(if(muted) Icons.Filled.MicOff else Icons.Filled.Mic)
+            }, modifier = Modifier.weight(1f).heightIn(min=80.dp), enabled = !call.terminated.value) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) { Icon(microphone,null);Text(if(BaresipService.isMicMuted) "Включить микрофон" else "Выключить микрофон",textAlign=TextAlign.Center) }
+            }
+            OutlinedButton(onClick = { BaresipService.instance?.toggleSpeakerphone() }, modifier = Modifier.weight(1f).heightIn(min=80.dp), enabled = !call.terminated.value) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) { Icon(Icons.Filled.SpeakerPhone,null);Text(if(speaker) "Выключить динамик" else "Громкая связь",textAlign=TextAlign.Center) }
+            }
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = { if(call.callOnHold.value)call.resume()else call.hold() }, modifier = Modifier.weight(1f).heightIn(min=80.dp), enabled = !call.terminated.value) {
+                Column(horizontalAlignment=Alignment.CenterHorizontally){Icon(Icons.Outlined.PauseCircle,null);Text(if(call.callOnHold.value) "Продолжить" else "Удержать")}
+            }
+            OutlinedButton(onClick = { keypad=true }, modifier = Modifier.weight(1f).heightIn(min=80.dp), enabled=call.dtmfEnabled.value&&!call.terminated.value) {
+                Column(horizontalAlignment=Alignment.CenterHorizontally){Icon(Icons.Filled.Dialpad,null);Text("Клавиатура")}
+            }
+        }
+        OutlinedButton(onClick = { advanced=!advanced }, modifier=Modifier.fillMaxWidth()) {Text(if(advanced) "Скрыть дополнительные действия" else "Перевод и сведения о вызове")}
+        if(advanced) { Text("Перевод · тональный набор · защита · статистика",style=MaterialTheme.typography.bodySmall);CallRow(ctx,viewModel,call,null) }
+        Button(onClick={if(!call.terminated.value){call.terminated.value=true;call.hangup(487,"Request Terminated")}},enabled=!call.terminated.value,modifier=Modifier.fillMaxWidth(),colors=androidx.compose.material3.ButtonDefaults.buttonColors(containerColor=MaterialTheme.colorScheme.error)){
+            Icon(Icons.Default.CallEnd,null);Spacer(Modifier.width(8.dp));Text("Завершить разговор")
+        }
+    }
+    if(keypad) androidx.compose.material3.AlertDialog(onDismissRequest={keypad=false},title={Text("Тональная клавиатура")},text={Column{listOf("123","456","789","*0#").forEach{digits->Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceEvenly){digits.forEach{digit->TextButton(onClick={if(!call.terminated.value)call.sendDigit(digit)},enabled=call.dtmfEnabled.value&&!call.terminated.value){Text("$digit",style=MaterialTheme.typography.headlineSmall)}}}}}},confirmButton={TextButton(onClick={keypad=false}){Text("К разговору")}})
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun MainContent(
@@ -1136,6 +1187,10 @@ private fun MainContent(
     val ctx = LocalContext.current
 
     val calls by viewModel.calls.collectAsState()
+    if (calls.isEmpty()) {
+        WorkspaceCallsContent(navController, viewModel, contentPadding)
+        return
+    }
     val selectedAor by viewModel.selectedAor.collectAsState()
     val ua = uas.value.find { it.account.aor == selectedAor }
     val aorCalls = calls.filter { it.ua.account.aor == selectedAor }
