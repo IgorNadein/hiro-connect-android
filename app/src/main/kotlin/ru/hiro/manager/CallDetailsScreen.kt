@@ -45,12 +45,14 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.SnapshotStateList
@@ -83,8 +85,26 @@ import kotlin.time.Duration.Companion.milliseconds
 
 fun NavGraphBuilder.callDetailsScreenRoute(navController: NavController, viewModel: ViewModel) {
     composable("call_details") { _ ->
-        val callRow = remember { viewModel.consumeSelectedCallRow() }
-        CallDetailsScreen(navController, callRow!!)
+        // The selection is consumed once. Keep a Serializable snapshot in this
+        // back-stack entry so activity/process recreation does not consume it again.
+        val selection = rememberSaveable { mutableStateOf(viewModel.consumeSelectedCallRow()) }
+        val callRow = selection.value
+        if (callRow != null) {
+            CallDetailsScreen(navController, callRow)
+        } else {
+            val back = {
+                if (!navController.navigateUp()) navController.navigate("main") {
+                    popUpTo("call_details") { inclusive = true }
+                    launchSingleTop = true
+                }
+            }
+            Scaffold(topBar = { WorkspaceHeader("Детали вызова", onBack = back) }) { padding ->
+                Column(Modifier.fillMaxSize().padding(padding).padding(18.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    WorkspaceInfo("Не удалось восстановить выбранный звонок. Откройте его снова из журнала.")
+                    TextButton(onClick = back) { Text("Вернуться к журналу") }
+                }
+            }
+        }
     }
 }
 
@@ -126,6 +146,8 @@ private fun CallDetailsScreen(navController: NavController, callRow: CallRow) {
                 detailsState,
                 onDelete = { detail ->
                     detailsState.remove(detail)
+                    // Keep the saved snapshot consistent with explicit deletions.
+                    callRow.details.remove(detail)
                     if (detailsState.isEmpty())
                         navController.navigateUp()
                 }
@@ -150,14 +172,21 @@ private fun CallDetailsContent(
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Peer(ctx, callRow)
+        if (Account.ofAor(callRow.aor) == null) {
+            WorkspaceInfo("SIP-подключение этого звонка сейчас недоступно. Запись истории сохранена.")
+        }
         Details(ctx, details, onDelete)
     }
 }
 
 @Composable
 private fun Peer(ctx: Context, callRow: CallRow) {
-    val account = Account.ofAor(callRow.aor)!!
-    val headerText = stringResource(R.string.peer) + " " + Utils.friendlyUri(ctx, callRow.peerUri, account)
+    // The all-account journal includes older sessions and removed accounts.
+    // Formatting a historical identity must not require a live SIP account.
+    val account = Account.ofAor(callRow.aor)
+    val peer = if (account != null) Utils.friendlyUri(ctx, callRow.peerUri, account)
+        else Contact.contactName(callRow.peerUri, includeLabel = true, unique = true)
+    val headerText = stringResource(R.string.peer) + " " + peer
     Text(
         text = headerText,
         modifier = Modifier.fillMaxWidth(),
@@ -302,10 +331,18 @@ private fun startTime(detail: Details, onDelete: (Details) -> Unit): String {
 @Composable
 private fun Duration(ctx: Context, detail: Details, durationText: String) {
 
+    if (detail.recording.firstOrNull().isNullOrEmpty()) {
+        Text(text = durationText, modifier = Modifier.padding(end = 12.dp))
+        return
+    }
+
     val showPlaybackDialog = remember { mutableStateOf(false) }
     val showDownloadDialog = remember { mutableStateOf(false) }
 
     val mediaPlayer = remember { MediaPlayer() }
+    DisposableEffect(mediaPlayer) {
+        onDispose { mediaPlayer.release() }
+    }
     val scope = rememberCoroutineScope()
 
     // 1. Set up the File Saver Launcher
@@ -373,9 +410,7 @@ private fun Duration(ctx: Context, detail: Details, durationText: String) {
             },
         )
 
-    val hasRecording = detail.recording.isNotEmpty() && detail.recording[0].isNotEmpty()
-    if (hasRecording)
-        Text(
+    Text(
             text = durationText,
             color = MaterialTheme.colorScheme.error,
             modifier = Modifier
@@ -512,8 +547,6 @@ private fun Duration(ctx: Context, detail: Details, durationText: String) {
                     }
                 )
         )
-    else
-        Text(text = durationText, modifier = Modifier.padding(end = 12.dp))
 }
 
 @Composable
