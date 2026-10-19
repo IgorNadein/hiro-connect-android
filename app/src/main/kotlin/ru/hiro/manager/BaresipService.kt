@@ -2123,6 +2123,7 @@ class BaresipService: Service() {
                         gatewaySyncFailures = 0
                         replaceHealthIssues("server", emptyList())
                     } else {
+                        ManagedTelephonyProfile.suspendManagedRegistrations()
                         gatewaySyncFailures = 0
                         replaceHealthIssues("server", emptyList())
                         replaceHealthIssues("gateway", emptyList())

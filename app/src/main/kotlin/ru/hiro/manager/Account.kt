@@ -8,6 +8,10 @@ import java.util.Locale
 class Account(val accp: Long, virtualAor: String? = null) {
 
     var isMobile = false
+    // Persist the server-owned identity marker across Account.saveAccounts().
+    // Without it the next launch cannot safely distinguish managed accounts
+    // from SIP accounts the user configured manually.
+    var managedProfile = ""
     var nickName = ""
     var displayName = if (accp != 0L) Api.account_display_name(accp) else ""
     val aor = if (accp != 0L) Api.account_aor(accp) else (virtualAor ?: "")
@@ -72,6 +76,8 @@ class Account(val accp: Long, virtualAor: String? = null) {
         }
 
         val extra = Api.account_extra(accp)
+        managedProfile = Utils.paramValue(extra, "managed_profile")
+            .takeIf { it.matches(Regex("[A-Za-z0-9_-]{1,100}")) }.orEmpty()
         if (Utils.paramExists(extra, "nickname")) nickName = Utils.paramValue(extra, "nickname")
         isMobile = Utils.paramExists(extra, "is_mobile")
         if (Utils.paramExists(extra, "regint")) configuredRegInt = Utils.paramValue(extra, "regint").toInt()
@@ -162,6 +168,7 @@ class Account(val accp: Long, virtualAor: String? = null) {
         if (nickName != "") extra += ";nickname=${nickName}"
 
         if (isMobile) extra += ";is_mobile=yes"
+        if (managedProfile.isNotEmpty()) extra += ";managed_profile=$managedProfile"
 
         if (!callHistory) extra += ";call_history=no"
 

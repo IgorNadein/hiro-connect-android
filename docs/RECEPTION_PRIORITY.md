@@ -21,10 +21,25 @@ POST `/api/v1/routing/reception/preview` returns the server's OWN effective
 preference. This is not an availability probe, actual call, manager roster or
 private-owner lookup. The app does not invent colleagues or an answer winner.
 
-The server explicitly returns applied_to_live_calls=false while individual
-authenticated SIP endpoints and the live PBX executor are not integrated.
-Saving must NOT display “priority active”. Shared endpoints 1001/2001 cannot
-identify individual managers. Existing real calls and SMS behavior are unchanged.
+The server reports applied_to_live_calls only while its individual-endpoint
+provisioner acknowledges the live PBX configuration and ingress hook. Without
+that integration or during a worker outage, the UI shows that saving is not
+activation. Shared endpoints 1001/2001 cannot identify individual managers.
+
+This version advertises safe personal-SIP migration. The authenticated session
+gets its own native account, and idle older managed accounts at the same proxy
+are retired. Manually configured accounts and other servers are preserved.
+The ownership marker survives account saves. Local logout stops registrations
+without interrupting an already established call. The server revalidates
+sessions before new incoming offers and individual outgoing calls.
+
+Equal effective priorities ring together; busy/offline/no-answer falls back to
+other managers. The current mobile stand exercises this through its Asterisk
+adapter; provider ingress must be integrated and tested separately. Legacy
+clients remain an anonymous neutral pool until upgraded/reconnected. Cross-
+device identity and personal priorities are reliable only on personal accounts.
+Single-instance pilot limitations and failure behavior are documented in the
+server's docs/PERSONAL_PBX.md; this is not a highly available PBX cluster.
 
 UI work uses native Compose, not a WebView: common content-height headers,
 grouped settings rows, compact blue navigation, accessible search fields,

@@ -21,8 +21,10 @@ object ManagedTelephonyProfile {
             BaresipService.uas.value.filter {
                 !Utils.uriMatch(it.account.aor, profile.aor) &&
                     !it.account.isMobile &&
-                    it.account.displayName == profile.displayName &&
-                    it.account.authUser == profile.authUsername &&
+                    shouldRetireManagedProfile(
+                        it.account.aor, it.account.displayName, it.account.authUser,
+                        it.account.outbound.firstOrNull().orEmpty(), it.account.managedProfile, profile
+                    ) &&
                     it.calls().isEmpty()
             }
         }
@@ -63,6 +65,10 @@ object ManagedTelephonyProfile {
 
         val account = existing.account
         var changed = false
+        if (account.managedProfile != profile.id) {
+            account.managedProfile = profile.id
+            changed = true
+        }
         if (account.displayName != profile.displayName) {
             check(Api.account_set_display_name(account.accp, profile.displayName) == 0)
             account.displayName = profile.displayName
@@ -120,6 +126,25 @@ object ManagedTelephonyProfile {
         return changed
     }
 
+    /** Stop future registration on local logout without interrupting a call. */
+    fun suspendManagedRegistrations() {
+        if (!BaresipService.isServiceRunning || !BaresipService.isNativeReady) return
+        val managed = synchronized(BaresipService.uas) {
+            BaresipService.uas.value.filter { !it.account.isMobile && it.account.managedProfile.isNotEmpty() }
+        }
+        var changed = false
+        managed.forEach { ua ->
+            if (ua.account.regint != 0) {
+                Api.ua_unregister(ua.uap)
+                if (Api.account_set_regint(ua.account.accp, 0) == 0) {
+                    ua.account.regint = 0
+                    changed = true
+                }
+            }
+        }
+        if (changed) Account.saveAccounts()
+    }
+
     private fun validate(profile: HiroTelephonyProfile) {
         require(profile.id.isNotBlank() && !unsafeValue.containsMatchIn(profile.id))
         require(profile.displayName.isNotBlank() && !unsafeValue.containsMatchIn(profile.displayName))
@@ -130,4 +155,21 @@ object ManagedTelephonyProfile {
         require(profile.transport in setOf("tcp", "tls", "udp"))
         require(profile.registrationInterval in 60..86_400)
     }
+}
+
+// A change of authenticated session changes the SIP username. Retire only an
+// idle server-owned slot at this same outbound proxy, never another server or
+// arbitrary manually configured SIP account. Old versions lost their marker on
+// save: the narrowly matched original 1001 template is the migration exception.
+internal fun shouldRetireManagedProfile(
+    oldAor: String, oldDisplayName: String, oldAuthUser: String,
+    oldProxy: String, oldManagedId: String, profile: HiroTelephonyProfile
+): Boolean {
+    if (oldProxy != profile.outboundProxy || oldAor == profile.aor) return false
+    val managed = oldManagedId == "manager-default" || oldManagedId.startsWith("personal-hmn")
+    val legacy = oldAuthUser == "1001" && oldDisplayName == "HI-RO Gateway" &&
+        oldAor.substringBefore('@') == "sip:1001" &&
+        oldAor.substringAfter('@', "") == profile.aor.substringAfter('@', "")
+    val oldSameIdentity = oldDisplayName == profile.displayName && oldAuthUser == profile.authUsername
+    return managed || legacy || oldSameIdentity
 }

@@ -157,6 +157,7 @@ class HiroAuthViewModel(application: Application) : AndroidViewModel(application
         val currentUrl = session?.serverUrl ?: defaultServerUrl()
         refreshJob?.cancel()
         store.clearSession()
+        ManagedTelephonyProfile.suspendManagedRegistrations()
         _state.value = HiroAuthState.SignedOut(currentUrl)
         if (session != null) {
             viewModelScope.launch(Dispatchers.IO) {

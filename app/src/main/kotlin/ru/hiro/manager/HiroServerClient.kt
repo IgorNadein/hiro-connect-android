@@ -345,6 +345,9 @@ class HiroServerClient {
             instanceFollowRedirects = false
             setRequestProperty("Accept", "application/json")
             setRequestProperty("User-Agent", "HI-RO Connect/${BuildConfig.VERSION_NAME}")
+            // Advertise safe in-place replacement of the old shared account.
+            // Older APKs keep their legacy profile during the migration.
+            setRequestProperty("X-HIRO-Personal-SIP", "1")
             if (bearerToken != null) setRequestProperty("Authorization", "Bearer $bearerToken")
             if (revision != null) setRequestProperty("If-Match", "\"$revision\"")
             if (body != null) {
