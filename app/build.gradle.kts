@@ -24,8 +24,8 @@ configure<ApplicationExtension> {
         applicationId = "ru.hiro.manager"
         minSdk = 28
         targetSdk = 36
-        versionCode = System.getenv("VERSION_CODE")?.toInt() ?: 10
-        versionName = System.getenv("VERSION_NAME") ?: "0.5.0"
+        versionCode = System.getenv("VERSION_CODE")?.toInt() ?: 11
+        versionName = System.getenv("VERSION_NAME") ?: "0.5.1"
         @Suppress("UnstableApiUsage")
         externalNativeBuild {
             cmake {

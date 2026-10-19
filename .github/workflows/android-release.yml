@@ -101,12 +101,17 @@ jobs:
           name: HI-RO Connect ${{ env.VERSION_NAME }}
           target_commitish: ${{ github.sha }}
           body: |
-            Android release of HI-RO Connect with opt-in client contacts and voice-routing priorities.
+            Personal SIM reception for SMS through the shared gateway phone.
 
-            Client routing is a pilot feature and requires the updated HI-RO Server routing module.
-            Explicit line, verified SIM and device rules take precedence over gateway-type defaults.
-            The Bluetooth chan_mobile gateway cannot select a SIM; only verified SIM-capable voice adapters expose SIM selection.
-            New routing screens still require real-device call testing.
+            Choose gateway SIMs in Contacts → Clients and routes → My SIMs for reception.
+            Each manager's selection is stored on HI-RO Server and applies to incoming SMS and notifications.
+            Outgoing SMS requires an explicit SIM choice on a dual-SIM gateway. Message cards show the source SIM.
+            Requires the matching HI-RO Server SIM subscriptions module. Update operator applications before enabling it on the server.
+
+            Important: per-SIM VOICE distribution is NOT implemented. Voice calls still use the shared queue.
+            The current Bluetooth chan_mobile channel does not identify a receiving SIM and managed SIP accounts remain shared.
+            Gateway SIM discovery was checked against two real SIMs. Android unit tests and APK compilation passed;
+            end-to-end real-device UI and SMS send/receive validation remains pending. No real SMS were sent as a smoke test.
 
             The APK can be installed from this page or through “About → Updates” in the application.
 

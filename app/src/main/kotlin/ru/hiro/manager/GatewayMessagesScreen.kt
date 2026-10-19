@@ -26,6 +26,9 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -55,6 +58,7 @@ import java.time.Instant
 import java.util.Date
 import java.util.UUID
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -77,6 +81,10 @@ private fun GatewayMessagesScreen(navController: NavController, session: HiroSes
     val scope = rememberCoroutineScope()
     var messages by remember { mutableStateOf<List<HiroSmsMessage>>(emptyList()) }
     var outbox by remember { mutableStateOf<List<HiroSmsOutboxMessage>>(emptyList()) }
+    var simCards by remember { mutableStateOf<List<HiroSIMCard>>(emptyList()) }
+    var sendSIM by remember { mutableStateOf<Long?>(null) }
+    var simReady by remember { mutableStateOf(false) }
+    var simMenu by remember { mutableStateOf(false) }
     var selectedAddress by remember { mutableStateOf<String?>(null) }
     var newAddress by remember { mutableStateOf("") }
     var draft by remember { mutableStateOf("") }
@@ -87,6 +95,16 @@ private fun GatewayMessagesScreen(navController: NavController, session: HiroSes
 
     suspend fun refresh() {
         var gatewayError: String? = null
+        try {
+            val inventory = withContext(Dispatchers.IO) { client.simSubscriptions(session).inventory }
+            simCards = inventory.items.sortedBy { it.slotIndex }
+            if (simCards.none { it.id == sendSIM }) sendSIM = simCards.singleOrNull()?.id
+            simReady = true
+        } catch (failure: CancellationException) { throw failure }
+        catch (failure: Exception) {
+            simReady = false
+            gatewayError = (failure as? HiroServerException)?.userMessage ?: "Не удалось прочитать SIM телефона-шлюза"
+        }
         try {
             messages = withContext(Dispatchers.IO) { client.smsMessages(session).items }
             syncStore.clearUnread()
@@ -125,7 +143,7 @@ private fun GatewayMessagesScreen(navController: NavController, session: HiroSes
     }
 
     val activeAddress = selectedAddress
-    val displayMessages = remember(messages, outbox) {
+    val displayMessages = remember(messages, outbox, simCards) {
         val phoneMessageIDs = messages.map { it.id }.toSet()
         messages.map {
             GatewaySmsItem(
@@ -134,7 +152,8 @@ private fun GatewayMessagesScreen(navController: NavController, session: HiroSes
                 text = it.text.orEmpty(),
                 timestamp = it.timestamp ?: it.sentAt ?: 0,
                 direction = it.direction.orEmpty(),
-                status = localizedSmsStatus(it.direction.orEmpty(), it.status.orEmpty())
+                status = localizedSmsStatus(it.direction.orEmpty(), it.status.orEmpty()),
+                simLabel = smsSIMLabel(it.subscriptionId, simCards)
             )
         } + outbox
             .filter { it.localMessageId == null || it.localMessageId !in phoneMessageIDs }
@@ -145,6 +164,7 @@ private fun GatewayMessagesScreen(navController: NavController, session: HiroSes
                     text = it.text,
                     timestamp = parseServerTime(it.createdAt),
                     direction = "outbound",
+                    simLabel = smsSIMLabel(it.subscriptionId, simCards),
                     status = when (it.status) {
                         "queued" -> "в очереди"
                         "submitted" -> "передано шлюзу"
@@ -194,6 +214,15 @@ private fun GatewayMessagesScreen(navController: NavController, session: HiroSes
         },
         bottomBar = {
             if (activeAddress != null) {
+                Column {
+                    androidx.compose.foundation.layout.Box(Modifier.padding(horizontal = 12.dp)) {
+                        OutlinedButton(enabled = simReady && !sending, onClick = { simMenu = true }) {
+                            Text("Отправить через: " + (simCards.find { it.id == sendSIM }?.label ?: "Выберите SIM"))
+                        }
+                        DropdownMenu(expanded = simMenu, onDismissRequest = { simMenu = false }) {
+                            simCards.forEach { sim -> DropdownMenuItem(text = { Text(sim.label) }, onClick = { sendSIM = sim.id; simMenu = false }) }
+                        }
+                    }
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -209,9 +238,10 @@ private fun GatewayMessagesScreen(navController: NavController, session: HiroSes
                         maxLines = 4
                     )
                     IconButton(
-                        enabled = draft.isNotBlank() && !sending,
+                        enabled = draft.isNotBlank() && !sending && simReady && simCards.any { it.id == sendSIM },
                         onClick = {
                             val outgoing = draft
+                            val outgoingSIM = sendSIM ?: return@IconButton
                             draft = ""
                             sending = true
                             error = null
@@ -222,13 +252,18 @@ private fun GatewayMessagesScreen(navController: NavController, session: HiroSes
                                             session = session,
                                             clientMessageId = UUID.randomUUID().toString(),
                                             address = activeAddress,
-                                            text = outgoing
+                                            text = outgoing,
+                                            subscriptionId = outgoingSIM
                                         )
                                     }
                                     refresh()
-                                } catch (failure: HiroServerException) {
+                                } catch (failure: CancellationException) { throw failure }
+                                catch (failure: HiroServerException) {
                                     draft = outgoing
                                     error = failure.userMessage
+                                } catch (_: Exception) {
+                                    draft = outgoing
+                                    error = "Не удалось отправить SMS. Проверьте соединение"
                                 } finally {
                                     sending = false
                                 }
@@ -238,6 +273,7 @@ private fun GatewayMessagesScreen(navController: NavController, session: HiroSes
                         if (sending) CircularProgressIndicator() else
                             Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Отправить")
                     }
+                }
                 }
             }
         }
@@ -257,6 +293,7 @@ private fun GatewayMessagesScreen(navController: NavController, session: HiroSes
                 error = error,
                 onOpen = {
                     selectedAddress = it
+                    sendSIM = simCards.singleOrNull()?.id
                     newAddress = ""
                 }
             )
@@ -327,6 +364,7 @@ private fun ConversationList(
                                 Text(message.address, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                                 Text(formatSmsTime(message.timestamp), style = MaterialTheme.typography.labelSmall)
                             }
+                            Text(message.simLabel, style = MaterialTheme.typography.labelSmall)
                             Spacer(Modifier.height(4.dp))
                             Text(
                                 message.text,
@@ -379,7 +417,7 @@ private fun MessageThread(
                         Column(modifier = Modifier.padding(12.dp)) {
                             Text(message.text)
                             Text(
-                                listOf(formatSmsTime(message.timestamp), message.status)
+                                listOf(formatSmsTime(message.timestamp), message.status, message.simLabel)
                                     .filter { it.isNotBlank() }
                                     .joinToString(" · "),
                                 style = MaterialTheme.typography.labelSmall,
@@ -419,5 +457,6 @@ private data class GatewaySmsItem(
     val text: String,
     val timestamp: Long,
     val direction: String,
-    val status: String
+    val status: String,
+    val simLabel: String
 )

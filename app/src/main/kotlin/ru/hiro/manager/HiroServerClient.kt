@@ -274,6 +274,15 @@ class HiroServerClient {
         request(resolve(session.apiBaseUrl + "/", "routing/lines"), bearerToken = session.accessToken)
     )
 
+    fun simSubscriptions(session: HiroSession): HiroSIMSubscriptions = decode(
+        request(resolve(session.apiBaseUrl + "/", "routing/subscriptions"), bearerToken = session.accessToken)
+    )
+
+    fun saveSIMSubscriptions(session: HiroSession, deviceId: String, ids: List<Long>, revision: Long): HiroSIMSubscriptions = decode(
+        request(resolve(session.apiBaseUrl + "/", "routing/subscriptions"), method = "PUT", bearerToken = session.accessToken,
+            body = hiroRoutingJson.encodeToString(HiroSIMUpdate(deviceId, ids)), revision = revision)
+    )
+
     fun clients(session: HiroSession): HiroClientDirectory = decode(
         request(resolve(session.apiBaseUrl + "/", "routing/clients"), bearerToken = session.accessToken)
     )
@@ -335,7 +344,7 @@ class HiroServerClient {
                     429 -> "Слишком много попыток. Попробуйте позже"
                     412 -> "Настройки изменены другим пользователем. Обновите список и повторите изменение"
                     403 -> "Недостаточно прав для изменения этих настроек"
-                    503 -> "Маршрутизация не настроена на сервере"
+                    503 -> serverMessage ?: "Сервис временно недоступен"
                     else -> serverMessage ?: "Сервер вернул ошибку $status"
                 }
                 throw HiroServerException(if (status == 401) "unauthorized" else "http_error", message)

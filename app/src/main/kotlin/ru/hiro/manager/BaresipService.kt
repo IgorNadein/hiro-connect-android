@@ -2108,7 +2108,7 @@ class BaresipService: Service() {
                             }
                             val lastSeen = syncStore.lastSeenMessageId(session)
                             val response = client.smsMessages(session, afterId = lastSeen ?: 0L)
-                            val newestID = response.items.maxOfOrNull(HiroSmsMessage::id) ?: lastSeen ?: 0L
+                            val newestID = maxOf(response.nextAfterId, response.items.maxOfOrNull(HiroSmsMessage::id) ?: 0L, lastSeen ?: 0L)
                             if (lastSeen != null) {
                                 val newInbound = response.items
                                     .asSequence()

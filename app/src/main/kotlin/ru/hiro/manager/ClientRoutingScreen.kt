@@ -121,6 +121,7 @@ private fun ClientRoutingScreen(nav: NavController, calls: ViewModel, auth: Hiro
                 if (message.isNotEmpty()) Text(message, color = MaterialTheme.colorScheme.primary)
                 TextButton(onClick = { work { reload() } }, enabled = !busy) { Text("Обновить с сервера") }
             }
+            if (canEdit) item { key(user.id) { GatewaySIMPreferences(auth) } }
             item {
                 Text("Исходящий звонок", style = MaterialTheme.typography.titleLarge)
                 RoutingChoice("Линия", listOf("" to "Автоматически по правилам") + lines.filter { it.enabled }.map { it.id to "${it.name} · ${it.gatewayType}" }, lineID) { lineID = it }
