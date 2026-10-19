@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="clients_and_routes">Клиенты и маршрутизация</string>
     <string name="brand_tagline">Рабочее место оператора</string>
     <string name="server_logout">Выйти с сервера</string>
     <string name="gateway_ready">Готов принимать звонки</string>

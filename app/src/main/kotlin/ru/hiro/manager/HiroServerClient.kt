@@ -270,6 +270,31 @@ class HiroServerClient {
         )
     }
 
+    fun voiceLines(session: HiroSession): HiroVoiceLines = decode(
+        request(resolve(session.apiBaseUrl + "/", "routing/lines"), bearerToken = session.accessToken)
+    )
+
+    fun clients(session: HiroSession): HiroClientDirectory = decode(
+        request(resolve(session.apiBaseUrl + "/", "routing/clients"), bearerToken = session.accessToken)
+    )
+
+    fun policies(session: HiroSession): HiroRoutingPolicies = decode(
+        request(resolve(session.apiBaseUrl + "/", "routing/policies"), bearerToken = session.accessToken)
+    )
+
+    fun saveClient(session: HiroSession, number: String, name: String, rules: List<HiroPriorityRule>, revision: Long, remove: Boolean): HiroClientDirectory {
+        val canonical = normalizeClientNumber(number) ?: throw HiroServerException("invalid_number", "Укажите номер с кодом страны, например +7…")
+        return decode(request(resolve(session.apiBaseUrl + "/", "routing/clients/$canonical"),
+            method = if (remove) "DELETE" else "PUT", bearerToken = session.accessToken,
+            body = if (remove) null else hiroRoutingJson.encodeToString(HiroClientUpdate(name, rules)),
+            revision = revision))
+    }
+
+    fun savePolicies(session: HiroSession, rules: List<HiroPriorityRule>, revision: Long): HiroRoutingPolicies = decode(
+        request(resolve(session.apiBaseUrl + "/", "routing/policies"), method = "PUT", bearerToken = session.accessToken,
+            body = hiroRoutingJson.encodeToString(HiroPolicyUpdate(rules)), revision = revision)
+    )
+
     private inline fun <reified T> decode(body: String): T = try {
         json.decodeFromString(body)
     } catch (_: Exception) {
@@ -280,7 +305,8 @@ class HiroServerClient {
         url: String,
         method: String = "GET",
         body: String? = null,
-        bearerToken: String? = null
+        bearerToken: String? = null,
+        revision: Long? = null
     ): String {
         val connection = (URL(url).openConnection() as HttpURLConnection).apply {
             requestMethod = method
@@ -290,6 +316,7 @@ class HiroServerClient {
             setRequestProperty("Accept", "application/json")
             setRequestProperty("User-Agent", "HI-RO Connect/${BuildConfig.VERSION_NAME}")
             if (bearerToken != null) setRequestProperty("Authorization", "Bearer $bearerToken")
+            if (revision != null) setRequestProperty("If-Match", "\"$revision\"")
             if (body != null) {
                 doOutput = true
                 setRequestProperty("Content-Type", "application/json; charset=utf-8")
@@ -306,6 +333,9 @@ class HiroServerClient {
                 val message = when (status) {
                     401 -> if (bearerToken == null) "Неверный логин или пароль" else "Сессия завершена"
                     429 -> "Слишком много попыток. Попробуйте позже"
+                    412 -> "Настройки изменены другим пользователем. Обновите список и повторите изменение"
+                    403 -> "Недостаточно прав для изменения этих настроек"
+                    503 -> "Маршрутизация не настроена на сервере"
                     else -> serverMessage ?: "Сервер вернул ошибку $status"
                 }
                 throw HiroServerException(if (status == 401) "unauthorized" else "http_error", message)
@@ -370,6 +400,6 @@ class HiroServerClient {
     }
 
     companion object {
-        private const val MAX_RESPONSE_BYTES = 1024 * 1024
+        private const val MAX_RESPONSE_BYTES = 8 * 1024 * 1024
     }
 }

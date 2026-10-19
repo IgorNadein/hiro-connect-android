@@ -461,6 +461,9 @@ private fun ContactsScreen(navController: NavController) {
                     },
                     windowInsets = WindowInsets(0, 0, 0, 0),
                     actions = {
+                        IconButton(onClick = { navController.navigate("client-routing") }) {
+                            Icon(Icons.Default.Check, contentDescription = stringResource(R.string.clients_and_routes))
+                        }
                         IconButton(onClick = { expanded = !expanded }) {
                             Icon(imageVector = Icons.Default.MoreVert, contentDescription = "Menu")
                         }

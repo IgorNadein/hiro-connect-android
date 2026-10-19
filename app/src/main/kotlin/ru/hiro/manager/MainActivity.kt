@@ -324,6 +324,7 @@ class MainActivity : ComponentActivity() {
                             accountScreenRoute(navController)
                             codecsScreenRoute(navController)
                             contactsScreenRoute(navController)
+                            clientRoutingScreenRoute(navController, viewModel, authViewModel, state.session.user)
                             contactScreenRoute(navController, viewModel)
                             callsScreenRoute(navController, viewModel)
                             callDetailsScreenRoute(navController, viewModel)

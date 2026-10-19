@@ -86,7 +86,7 @@ jobs:
           SIGNING_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
           chmod +x gradlew
-          ./gradlew :app:assembleRelease
+          ./gradlew :app:testDebugUnitTest :app:assembleRelease
       - name: Verify and prepare APK
         run: |
           test -f app/build/outputs/apk/release/app-release.apk
@@ -101,7 +101,12 @@ jobs:
           name: HI-RO Connect ${{ env.VERSION_NAME }}
           target_commitish: ${{ github.sha }}
           body: |
-            Stable Android release of HI-RO Connect.
+            Android release of HI-RO Connect with opt-in client contacts and voice-routing priorities.
+
+            Client routing is a pilot feature and requires the updated HI-RO Server routing module.
+            Explicit line, verified SIM and device rules take precedence over gateway-type defaults.
+            The Bluetooth chan_mobile gateway cannot select a SIM; only verified SIM-capable voice adapters expose SIM selection.
+            New routing screens still require real-device call testing.
 
             The APK can be installed from this page or through “About → Updates” in the application.
 

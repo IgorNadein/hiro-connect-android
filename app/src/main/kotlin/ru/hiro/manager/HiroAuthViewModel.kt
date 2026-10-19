@@ -156,6 +156,31 @@ class HiroAuthViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    // Reuse the app's session owner; never create a second refresh-token store.
+    suspend fun <T> authenticatedRequest(block: (HiroServerClient, HiroSession) -> T): T {
+        val original = (_state.value as? HiroAuthState.SignedIn)?.session
+            ?: throw HiroServerException("unauthorized", "Войдите на сервер")
+        var session = original
+        suspend fun renew() {
+            val refreshed = withContext(Dispatchers.IO) { HiroSessionRefresher.refresh(getApplication(), session) }
+            if ((_state.value as? HiroAuthState.SignedIn)?.session?.sessionId != original.sessionId)
+                throw HiroServerException("unauthorized", "Сессия изменилась")
+            persistAndSignIn(refreshed)
+            session = refreshed
+        }
+        if (!accessTokenIsUsable(session)) renew()
+        val result = try {
+            withContext(Dispatchers.IO) { block(client, session) }
+        } catch (error: HiroServerException) {
+            if (error.code != "unauthorized") throw error
+            renew()
+            withContext(Dispatchers.IO) { block(client, session) }
+        }
+        if ((_state.value as? HiroAuthState.SignedIn)?.session?.sessionId != original.sessionId)
+            throw HiroServerException("unauthorized", "Сессия изменилась")
+        return result
+    }
+
     private suspend fun restore(saved: HiroSession) {
         if (accessTokenIsUsable(saved)) {
             try {

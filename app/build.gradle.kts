@@ -24,8 +24,8 @@ configure<ApplicationExtension> {
         applicationId = "ru.hiro.manager"
         minSdk = 28
         targetSdk = 36
-        versionCode = System.getenv("VERSION_CODE")?.toInt() ?: 9
-        versionName = System.getenv("VERSION_NAME") ?: "0.4.5"
+        versionCode = System.getenv("VERSION_CODE")?.toInt() ?: 10
+        versionName = System.getenv("VERSION_NAME") ?: "0.5.0"
         @Suppress("UnstableApiUsage")
         externalNativeBuild {
             cmake {
@@ -91,6 +91,7 @@ composeCompiler {
 }
 
 dependencies {
+    testImplementation("junit:junit:4.13.2")
     implementation(libs.androidx.foundation.android)
     implementation(libs.androidx.runtime.livedata)
     implementation(libs.androidx.compose.material3)

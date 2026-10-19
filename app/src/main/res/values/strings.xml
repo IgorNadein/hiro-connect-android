@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="clients_and_routes">Clients and voice routing</string>
     <string name="app_name" translatable="false">HI-RO Connect</string>
     <string name="app_name_plus" translatable="false">HI-RO Connect</string>
     <string name="brand_tagline">Operator workspace</string>
