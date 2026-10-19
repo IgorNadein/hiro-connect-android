@@ -58,7 +58,9 @@ class NativeWorkspaceSmokeTest {
         compose.onNodeWithText("Разрешить синхронизацию").assertIsDisplayed()
         capture("personal-sync-light")
         compose.onNodeWithContentDescription("Назад").performClick()
-        compose.onNodeWithText("Найти настройку").assertIsDisplayed()
+        compose.waitForIdle()
+        compose.onNodeWithText("Контакты и синхронизация").assertIsDisplayed()
+        compose.onNodeWithText("Ваша личная адресная книга").assertDoesNotExist()
     }
     @Test fun adminOrganizationAppearsInSearchAndDarkTheme() {
         show(role="admin",dark=true)
