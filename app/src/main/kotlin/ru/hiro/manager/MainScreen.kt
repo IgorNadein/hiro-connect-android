@@ -1187,10 +1187,6 @@ private fun MainContent(
     val ctx = LocalContext.current
 
     val calls by viewModel.calls.collectAsState()
-    if (calls.isEmpty()) {
-        WorkspaceCallsContent(navController, viewModel, contentPadding)
-        return
-    }
     val selectedAor by viewModel.selectedAor.collectAsState()
     val ua = uas.value.find { it.account.aor == selectedAor }
     val aorCalls = calls.filter { it.ua.account.aor == selectedAor }
@@ -1233,6 +1229,11 @@ private fun MainContent(
         neutralButtonText = stringResource(R.string.cancel),
         onNeutralClicked = {}
     )
+
+    if (calls.isEmpty()) {
+        WorkspaceCallsContent(navController, viewModel, contentPadding)
+        return
+    }
 
     Column(
         modifier = Modifier

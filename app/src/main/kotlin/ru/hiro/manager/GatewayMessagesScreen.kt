@@ -255,6 +255,7 @@ private fun GatewayMessagesScreen(navController: NavController, session: HiroSes
                         onValueChange = { draft = it },
                         modifier = Modifier.weight(1f),
                         label = { Text("Сообщение") },
+                        enabled = !sending,
                         maxLines = 4
                     )
                     IconButton(
@@ -265,7 +266,6 @@ private fun GatewayMessagesScreen(navController: NavController, session: HiroSes
                             val payload = java.security.MessageDigest.getInstance("SHA-256").digest((activeAddress+"\n"+outgoingSIM+"\n"+outgoing).toByteArray()).joinToString(""){"%02x".format(it)}
                             if(retryId.isEmpty() || retryPayload != payload) { retryId = UUID.randomUUID().toString(); retryPayload = payload }
                             val messageId = retryId
-                            draft = ""
                             sending = true
                             error = null
                             scope.launch {
@@ -279,7 +279,7 @@ private fun GatewayMessagesScreen(navController: NavController, session: HiroSes
                                             subscriptionId = outgoingSIM
                                         )
                                     }
-                                    retryId = ""; retryPayload = ""
+                                    draft = ""; retryId = ""; retryPayload = ""
                                     refresh()
                                 } catch (failure: CancellationException) { throw failure }
                                 catch (failure: HiroServerException) {

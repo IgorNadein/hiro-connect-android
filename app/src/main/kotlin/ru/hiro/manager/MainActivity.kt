@@ -32,6 +32,7 @@ import androidx.activity.viewModels
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.lifecycle.Observer
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
@@ -275,6 +276,7 @@ class MainActivity : ComponentActivity() {
                         onOIDCSignIn = authViewModel::signInWithOIDC
                     )
                     is HiroAuthState.SignedIn -> {
+                        key(state.session.apiBaseUrl, state.session.user.id) {
                         PersonalContactsConsent(authViewModel, state.session)
                         navController = rememberNavController()
 
@@ -299,7 +301,8 @@ class MainActivity : ComponentActivity() {
                                         navController.navigate("gateway-messages") { launchSingleTop = true }
                                     is NavigationCommand.NavigateToHome ->
                                         navController.navigate("main") {
-                                            popUpTo("main") { inclusive = true }
+                                            // Incoming-call UI must not erase editors below it.
+                                            launchSingleTop = true
                                         }
                                 }
                             }
@@ -336,6 +339,7 @@ class MainActivity : ComponentActivity() {
                             chatsScreenRoute(navController)
                             chatScreenRoute(navController, viewModel)
                             gatewayMessagesScreenRoute(navController, state.session)
+                        }
                         }
                         }
                     }
