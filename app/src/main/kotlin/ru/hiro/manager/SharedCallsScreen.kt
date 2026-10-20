@@ -1,0 +1,232 @@
+package ru.hiro.manager
+
+import android.media.MediaPlayer
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.ensureActive
+import java.io.File
+
+internal fun callError(error:Throwable)=if(error is HiroServerException)error.userMessage else "Не удалось загрузить данные. Проверьте соединение."
+
+@Composable
+internal fun SharedCallsScreen(repository:SharedCallRepository,padding:PaddingValues=PaddingValues(),initialTab:Int=0,onOpen:(String)->Unit,onDial:()->Unit,onLocal:()->Unit) {
+    var tab by rememberSaveable{mutableIntStateOf(initialTab)}
+    var query by rememberSaveable{mutableStateOf("")}
+    var missed by rememberSaveable{mutableStateOf(false)}
+    var history by remember{mutableStateOf<SharedCallPage?>(null)}
+    var live by remember{mutableStateOf<LiveTeamCalls?>(null)}
+    var error by remember{mutableStateOf("")}
+    var busy by remember{mutableStateOf(false)}
+    var retry by remember{mutableIntStateOf(0)}
+    var generation by remember{mutableIntStateOf(0)}
+    var joining by remember{mutableStateOf<LiveTeamCall?>(null)}
+    var callback by remember{mutableStateOf("")}
+    val scope=rememberCoroutineScope()
+    val lifecycle=LocalLifecycleOwner.current.lifecycle
+    LaunchedEffect(repository,tab,query,missed,retry) {
+        generation++
+        error="";busy=true
+        if(tab==0) {
+            history=null
+            delay(250)
+            try {history=repository.history(query,missed)}catch(e:CancellationException){throw e}catch(e:Exception){error=callError(e)}finally{busy=false}
+        } else {
+            busy=false
+            lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                while(true) {
+                    try {live=repository.live();error=""}catch(e:CancellationException){throw e}catch(e:Exception){error=callError(e);live=null}
+                    delay(3000)
+                }
+            }
+        }
+    }
+    LazyColumn(Modifier.fillMaxSize().padding(padding),contentPadding=PaddingValues(18.dp),verticalArrangement=Arrangement.spacedBy(14.dp)) {
+        item {
+            WorkspaceCard {
+                Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)){
+                    HiroAvatar("",icon=Icons.Outlined.Headset)
+                    Column(Modifier.weight(1f)){Text("Звонки команды",style=MaterialTheme.typography.titleLarge);Text("Общий журнал сервера",style=MaterialTheme.typography.bodySmall)}
+                    IconButton(onClick={retry++},enabled=!busy){Icon(Icons.Outlined.Refresh,"Обновить звонки")}
+                }
+                Button(onClick=onDial,modifier=Modifier.fillMaxWidth().heightIn(min=48.dp)){Icon(Icons.Outlined.Dialpad,null);Spacer(Modifier.width(8.dp));Text("Набрать номер")}
+            }
+        }
+        item { HiroSegments(listOf("Журнал","Сейчас","Очередь"),tab){tab=it;callback=""} }
+        if(error.isNotEmpty())item{WorkspaceInfo(error,true);TextButton(onClick={retry++}){Text("Повторить загрузку")}}
+        if(callback.isNotEmpty())item{WorkspaceInfo(callback)}
+        if(busy)item{LinearProgressIndicator(Modifier.fillMaxWidth())}
+        if(tab==0) {
+            item{WorkspaceSearch(query,{query=it},"Имя, номер или менеджер")}
+            item{Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){FilterChip(!missed,{missed=false},label={Text("Все")});FilterChip(missed,{missed=true},label={Text("Пропущенные")})}}
+            history?.let{page->
+                if(page.problem.isNotBlank())item{WorkspaceInfo("Обновление журнала задерживается. Показаны ранее сохранённые звонки.",true)}
+                if(page.items.isEmpty())item{HiroEmpty(Icons.Outlined.Phone,"Звонков не найдено",if(query.isNotBlank()||missed)"Измените поиск или фильтр." else "Здесь появятся звонки, сохранённые сервером. История смартфона доступна отдельно.")}
+                items(page.items,key={it.id}){call->
+                    WorkspaceGroup {
+                        HiroPersonRow(callTitle(call),call.number,callStatus(call)+" · "+if(call.recording)"Есть запись" else "Без записи",callTime(call.startedAt)){onOpen(call.id)}
+                        if(call.operators.isNotEmpty())Text(call.operators.joinToString(" · "),Modifier.padding(start=16.dp,end=16.dp,bottom=12.dp),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+                if(page.nextCursor.isNotEmpty())item{OutlinedButton(enabled=!busy,onClick={
+                    val requestedGeneration=generation
+                    scope.launch{busy=true;error="";try{
+                        val next=repository.history(query,missed,page.nextCursor)
+                        if(generation==requestedGeneration)history=next.copy(items=(page.items+next.items).distinctBy{it.id})
+                    }catch(e:CancellationException){throw e}catch(e:Exception){if(generation==requestedGeneration)error=callError(e)}finally{if(generation==requestedGeneration)busy=false}}
+                },modifier=Modifier.fillMaxWidth()){Text("Показать ещё")}}
+            }
+            item{TextButton(onClick=onLocal,modifier=Modifier.fillMaxWidth()){Text("История на этом смартфоне")}}
+        } else {
+            val state=live
+            if(state!=null) {
+                if(!state.ready)item{WorkspaceInfo("Нет актуального состояния АТС. Подключение к разговору недоступно.",true)}
+                else {
+                    val rows=state.items.filter{if(tab==2)it.state=="waiting" else it.state=="active"}
+                    item{Text(if(tab==2)"Ожидают ответа" else "Разговоры команды",style=MaterialTheme.typography.titleLarge)}
+                    if(rows.isEmpty())item{HiroEmpty(if(tab==2)Icons.Outlined.Schedule else Icons.Outlined.Headset,if(tab==2)"Нет ожидающих звонков" else "Сейчас нет разговоров","Состояние АТС обновляется автоматически.")}
+                    items(rows,key={it.id}){call->
+                        WorkspaceCard{
+                            Text(call.number.ifBlank{"Номер не передан"},style=MaterialTheme.typography.titleLarge)
+                            Text(if(call.operators.isEmpty())"Оператор не определён" else call.operators.joinToString(" · "))
+                            Text(callDuration(call.duration)+call.gatewayType.takeIf{it.isNotBlank()}?.let{" · "+callGatewayLabel(it)}.orEmpty(),style=MaterialTheme.typography.bodySmall)
+                            if(tab==1&&state.capabilities.join)OutlinedButton(onClick={joining=call},enabled=!busy,modifier=Modifier.fillMaxWidth()){Icon(Icons.Outlined.GroupAdd,null);Spacer(Modifier.width(8.dp));Text("Участвовать в разговоре")}
+                        }
+                    }
+                }
+            }
+        }
+    }
+    joining?.let{call->AlertDialog(onDismissRequest={joining=null},title={Text("Подключиться к разговору?")},
+        text={Text("АТС позвонит в ваше рабочее приложение. Ответьте на входящий вызов: вас будут слышать клиент и другие участники. Разговор должен ещё продолжаться.")},
+        confirmButton={TextButton(onClick={joining=null;scope.launch{busy=true;error="";try{repository.join(call.id);callback="Запрос отправлен. Ответьте на входящий вызов АТС для участия в разговоре."}catch(e:CancellationException){throw e}catch(e:Exception){error=callError(e)}finally{busy=false}}}){Text("Запросить подключение")}},
+        dismissButton={TextButton(onClick={joining=null}){Text("Отмена")}})}
+}
+
+@Composable
+internal fun SharedCallDetails(repository:SharedCallRepository,id:String,onBack:()->Unit,onCall:(String)->Unit,onSMS:(String)->Unit) {
+    var detail by remember(id,repository){mutableStateOf<SharedCallDetail?>(null)}
+    var error by remember{mutableStateOf("")}
+    var reload by remember{mutableIntStateOf(0)}
+    var busy by remember{mutableStateOf(false)}
+    var draft by rememberSaveable(id){mutableStateOf("")}
+    var baseNote by rememberSaveable(id){mutableStateOf("")}
+    var revision by rememberSaveable(id){mutableLongStateOf(-1)}
+    var leave by remember{mutableStateOf(false)}
+    val scope=rememberCoroutineScope()
+    val navigation=LocalWorkspaceNavigation.current
+    val dirty=revision>=0&&draft!=baseNote
+    SideEffect{navigation?.dirty=dirty;navigation?.busy=busy}
+    DisposableEffect(Unit){onDispose{navigation?.dirty=false;navigation?.busy=false}}
+    fun back(){if(busy)return;if(dirty)leave=true else onBack()}
+    BackHandler{back()}
+    LaunchedEffect(repository,id,reload){
+        busy=true;error=""
+        try{
+            val result=repository.detail(id);detail=result
+            if(revision<0){draft=result.call.note;baseNote=result.call.note}
+            else if(dirty&&result.call.note!=baseNote)error="Заметка на сервере изменилась. Черновик сохранён на экране; сравните его с актуальной заметкой перед сохранением."
+            baseNote=result.call.note;revision=result.call.noteRevision
+        }catch(e:CancellationException){throw e}catch(e:Exception){error=callError(e)}finally{busy=false}
+    }
+    Scaffold(topBar={WorkspaceHeader("Карточка звонка","Общий журнал",onBack={back()})}){padding->
+        LazyColumn(Modifier.fillMaxSize().padding(padding).imePadding(),contentPadding=PaddingValues(18.dp),verticalArrangement=Arrangement.spacedBy(16.dp)){
+            if(busy)item{LinearProgressIndicator(Modifier.fillMaxWidth())}
+            if(error.isNotBlank())item{WorkspaceInfo(error,true)}
+            item{TextButton(enabled=!busy,onClick={reload++}){Text("Обновить карточку")}}
+            detail?.let{info->val call=info.call
+                item{HiroContactHero(callTitle(call),call.number,callStatus(call),true)}
+                item{WorkspaceCard{
+                    Text(callTime(call.startedAt),style=MaterialTheme.typography.titleMedium)
+                    if(call.source=="recording_archive")Text("Старая серверная запись без журнала АТС. Номер и участники неизвестны.")
+                    else {Text("Длительность · "+callDuration(call.duration));Text("Время соединения · "+callDuration(call.talk))}
+                    if(call.line.isNotBlank())Text("Линия · "+call.line)
+                    if(call.gatewayType.isNotBlank())Text("Шлюз · "+callGatewayLabel(call.gatewayType))
+                    if(call.operators.isNotEmpty())Text("Участники · "+call.operators.joinToString(" · "))
+                }}
+                if(callCanDial(call.number)&&info.capabilities.notes)item{Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){
+                    Button(onClick={if(dirty)error="Сохраните заметку перед переходом" else onCall(call.number)},modifier=Modifier.weight(1f)){Text("Позвонить")}
+                    OutlinedButton(onClick={if(dirty)error="Сохраните заметку перед переходом" else onSMS(call.number)},modifier=Modifier.weight(1f)){Text("Написать")}
+                }}
+                if(call.recording&&info.capabilities.recordings)item{SharedRecordingPlayer(repository,id)}
+                else item{WorkspaceInfo(if(!call.recording)"Серверная запись этого разговора отсутствует." else "Прослушивание доступно менеджерам и администраторам.")}
+                item{WorkspaceCard{
+                    Text("Заметка команды",style=MaterialTheme.typography.titleLarge)
+                    if(info.capabilities.notes){
+                        if(dirty&&call.note!=draft)Text("На сервере: "+call.note.ifBlank{"Пустая заметка"})
+                        OutlinedTextField(draft,{if(it.toByteArray().size<=8192)draft=it},label={Text("Итоги и следующий шаг")},enabled=!busy,modifier=Modifier.fillMaxWidth(),minLines=3)
+                        Button(enabled=dirty&&!busy,onClick={scope.launch{busy=true;error="";try{
+                            val saved=repository.note(id,draft,revision);detail=saved;draft=saved.call.note;baseNote=draft;revision=saved.call.noteRevision
+                        }catch(e:CancellationException){throw e}catch(e:Exception){error=if(e is HiroServerException&&e.code=="note_conflict")"Другой менеджер изменил заметку. Черновик не потерян. Обновите карточку и сравните изменения." else callError(e)}finally{busy=false}}},modifier=Modifier.fillMaxWidth()){Text("Сохранить заметку")}
+                    }else Text(call.note.ifBlank{"Заметок пока нет"})
+                }}
+                item{WorkspaceInfo("Автоматическое резюме ИИ не подменяет запись звонка. Для этой карточки оно пока не подключено.")}
+            }
+        }
+    }
+    if(leave)AlertDialog(onDismissRequest={leave=false},title={Text("Не сохранять заметку?")},text={Text("Черновик будет потерян. Серверная заметка не изменится.")},confirmButton={TextButton(onClick={navigation?.dirty=false;leave=false;onBack()}){Text("Выйти без сохранения")}},dismissButton={TextButton(onClick={leave=false}){Text("Остаться")}})
+}
+
+@Composable
+private fun SharedRecordingPlayer(repository:SharedCallRepository,id:String) {
+    val context=LocalContext.current
+    val scope=rememberCoroutineScope()
+    var player by remember(repository,id){mutableStateOf<MediaPlayer?>(null)}
+    var file by remember(repository,id){mutableStateOf<File?>(null)}
+    var loading by remember{mutableStateOf(false)}
+    var playing by remember{mutableStateOf(false)}
+    var position by remember{mutableIntStateOf(0)}
+    var duration by remember{mutableIntStateOf(0)}
+    var error by remember{mutableStateOf("")}
+    val lifecycle=LocalLifecycleOwner.current.lifecycle
+    DisposableEffect(repository,id){onDispose{player?.release();file?.delete()}}
+    LaunchedEffect(player){while(true){player?.let{position=runCatching{it.currentPosition}.getOrDefault(0)};delay(250)}}
+    LaunchedEffect(lifecycle){lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED){try{kotlinx.coroutines.awaitCancellation()}finally{runCatching{player?.pause()};playing=false}}}
+    WorkspaceCard{
+        Row(verticalAlignment=Alignment.CenterVertically){Icon(Icons.Outlined.GraphicEq,null);Spacer(Modifier.width(8.dp));Text("Запись разговора",style=MaterialTheme.typography.titleLarge)}
+        Text("Доступ для менеджеров и администраторов. Прослушивание учитывается сервером.",style=MaterialTheme.typography.bodySmall)
+        if(error.isNotBlank())WorkspaceInfo(error,true)
+        if(loading)LinearProgressIndicator(Modifier.fillMaxWidth())
+        Slider(value=position.toFloat().coerceIn(0f,duration.coerceAtLeast(1).toFloat()),onValueChange={position=it.toInt();player?.seekTo(position)},valueRange=0f..duration.coerceAtLeast(1).toFloat(),enabled=player!=null)
+        Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){
+            Text(callDuration(position/1000L)+" / "+callDuration(duration/1000L),Modifier.weight(1f))
+            FilledTonalButton(enabled=!loading,onClick={
+                if(player!=null){if(playing)player?.pause()else player?.start();playing=!playing}
+                else scope.launch{
+                    loading=true;error=""
+                    val owned=try{File.createTempFile("hiro-call-",".wav",context.cacheDir)}catch(_:Exception){loading=false;error="Недостаточно места для записи";return@launch};file=owned
+                    var prepared:MediaPlayer?=null
+                    try{
+                        repository.recording(id,owned)
+                        kotlinx.coroutines.currentCoroutineContext().ensureActive()
+                        prepared=MediaPlayer().apply{
+                            setAudioAttributes(android.media.AudioAttributes.Builder().setUsage(android.media.AudioAttributes.USAGE_MEDIA).setContentType(android.media.AudioAttributes.CONTENT_TYPE_SPEECH).build())
+                            setDataSource(owned.absolutePath);prepare()
+                            setOnCompletionListener{playing=false;position=duration}
+                            setOnErrorListener{_,_,_->playing=false;error="Не удалось воспроизвести запись";true}
+                        }
+                        duration=prepared.duration;player=prepared;prepared=null;player?.start();playing=true
+                    }catch(e:CancellationException){owned.delete();throw e}
+                    catch(e:Exception){owned.delete();error=if(e is HiroServerException)callError(e) else "Не удалось воспроизвести запись"}
+                    finally{prepared?.release();loading=false}
+                }
+            }){Icon(if(playing)Icons.Outlined.Pause else Icons.Outlined.PlayArrow,null);Spacer(Modifier.width(6.dp));Text(if(playing)"Пауза" else "Слушать")}
+        }
+    }
+}

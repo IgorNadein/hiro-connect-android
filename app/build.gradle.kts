@@ -25,7 +25,7 @@ configure<ApplicationExtension> {
         minSdk = 28
         targetSdk = 36
         versionCode = System.getenv("VERSION_CODE")?.toInt() ?: 100
-        versionName = System.getenv("VERSION_NAME") ?: "0.6.3"
+        versionName = System.getenv("VERSION_NAME") ?: "0.7.0"
         @Suppress("UnstableApiUsage")
         externalNativeBuild {
             cmake {

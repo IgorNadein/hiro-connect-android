@@ -53,6 +53,7 @@ import kotlinx.coroutines.launch
 internal data class WorkspaceTab(val route: String, val label: String)
 internal val workspaceTabs = listOf(WorkspaceTab("main", "Звонки"), WorkspaceTab("gateway-messages", "Сообщения"), WorkspaceTab("client-routing", "Клиенты"), WorkspaceTab("workspace-settings", "Настройки"))
 internal fun workspaceTabFor(route: String?): String = when {
+    route?.startsWith("workspace-call") == true || route in setOf("workspace-local-calls","workspace-team-calls") -> "main"
     route?.startsWith("workspace-dialer") == true -> "main"
     route?.startsWith("client-routing") == true -> "client-routing"
     route?.startsWith("gateway-messages") == true || route?.startsWith("chat") == true -> "gateway-messages"
@@ -200,6 +201,20 @@ internal fun WorkspaceCallsContent(nav: NavController, calls: ViewModel, padding
 }
 
 fun NavGraphBuilder.workspaceRoutes(nav: NavController, calls: ViewModel, auth: HiroAuthViewModel, session: HiroSession) {
+    composable("workspace-team-calls") {
+        val repository=remember(auth,session.sessionId){AuthenticatedCallRepository(auth)}
+        Scaffold(topBar={WorkspaceHeader("Звонки команды","Ваш разговор не прерывается",onBack={nav.navigateUp()})}){padding->
+            SharedCallsScreen(repository,padding,initialTab=1,onOpen={nav.navigate("workspace-call/$it")},onDial={nav.navigate("workspace-dialer")},onLocal={nav.navigate("workspace-local-calls")})
+        }
+    }
+    composable("workspace-call/{id}",arguments=listOf(navArgument("id"){type=NavType.StringType})) { entry ->
+        val repository=remember(auth,session.sessionId){AuthenticatedCallRepository(auth)}
+        SharedCallDetails(repository,entry.arguments?.getString("id").orEmpty(),onBack={nav.navigateUp()},
+            onCall={nav.navigate("workspace-dialer?number=${Uri.encode(it)}")},onSMS={nav.navigate("gateway-messages?address=${Uri.encode(it)}")})
+    }
+    composable("workspace-local-calls") {
+        Scaffold(topBar={WorkspaceHeader("На этом смартфоне","Личная история, не общий журнал",onBack={nav.navigateUp()})}){padding->WorkspaceCallsContent(nav,calls,padding)}
+    }
     composable("workspace-settings") { WorkspaceSettings(nav, session) }
     composable("workspace-receive") { WorkspacePage("Какие SMS получаю","Приём сообщений — отдельно от приоритета звонков",nav) { item { GatewaySIMPreferences(auth) } } }
     composable("workspace-priority?caller={caller}",arguments=listOf(navArgument("caller"){type=NavType.StringType;defaultValue=""})) { entry -> ReceptionPriorityScreen(nav,auth,entry.arguments?.getString("caller").orEmpty()) }

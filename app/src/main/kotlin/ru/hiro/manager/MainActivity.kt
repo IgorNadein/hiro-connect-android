@@ -64,6 +64,7 @@ class MainActivity : ComponentActivity() {
 
     @SuppressLint("ClickableViewAccessibility")
     override fun onCreate(savedInstanceState: Bundle?) {
+        SharedCallAudioCache.clear(this)
 
         super.onCreate(savedInstanceState)
 
@@ -315,6 +316,7 @@ class MainActivity : ComponentActivity() {
                                 navController = navController,
                                 viewModel = viewModel,
                                 serverSession = state.session,
+                                serverAuth = authViewModel,
                                 onServerLogout = authViewModel::signOut,
                                 onRequestPermissions = { requestPermissionsLauncher.launch(permissions) },
                                 onRestartApp = { restartApp() },

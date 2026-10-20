@@ -1,4 +1,9 @@
-# HI-RO Connect 0.6: task-based mobile interface
+# HI-RO Connect: task-based mobile interface
+
+Update 0.7: shared server history, archive playback, notes and live participation
+requests are now implemented. See [Shared calls](SHARED_CALLS.md) for permissions,
+server requirements and remaining end-to-end acceptance checks. Attribution is
+backend-only and is no longer part of any client screen.
 
 The approved interactive concept is design version 5. This release maps existing
 working functionality to four primary tabs: Calls, Messages, Clients, Settings.
@@ -10,7 +15,7 @@ counts or fake connection-success states are included in the APK.
 
 | Task | Application location |
 | --- | --- |
-| Calls and local history | Calls; contact details open from a history row |
+| Shared calls and local history | Calls → Journal; device-only history is a separate action |
 | Outgoing source and number | Calls → Dial number; explicit line selection applies to that call |
 | In-call controls | Labeled microphone, speaker, hold, DTMF, transfer/details and hangup |
 | Server SMS and source SIM | Messages; each thread requires a SIM choice when multiple exist |
@@ -56,13 +61,13 @@ with changed payloads. User consent is not inferred from installing the update.
 
 ## Explicitly not shipped
 
-The concept also includes server-wide live calls, operator joining, a mobile AI
+The concept also includes a mobile AI
 assistant, per-SIM voice routing, in-app provider provisioning, per-user routing
 of private-contact matches, server-wide sessions management and scheduled quiet
 hours. Those require additional server/device capabilities and are not simulated
 as working features in this release. Gateway voice remains a shared flow; the
 current Bluetooth adapter cannot identify an incoming voice SIM. Local history
-is labeled as local and does not claim to show every call in the organization.
+is labeled as local and is separate from the server-wide journal.
 
 ## Verification
 

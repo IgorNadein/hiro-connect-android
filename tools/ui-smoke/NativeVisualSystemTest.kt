@@ -59,7 +59,7 @@ class NativeVisualSystemTest {
     @Test fun directoryMakesPrivateAndSharedScopesClear(){
         var personal by mutableStateOf(false);var query by mutableStateOf("");var opened="";var adds=0
         show{shell("client-routing","Клиенты"){p->HiroDirectoryList(p,
-            if(personal)listOf(HiroDirectoryPerson("+79990000003","Личный контакт","Только вам")) else listOf(HiroDirectoryPerson("+79990000001","Анна Смирнова","Кто привёл: Мария Волкова"),HiroDirectoryPerson("+79990000002","Борис Волков","Кто привёл: не указан")),
+            if(personal)listOf(HiroDirectoryPerson("+79990000003","Личный контакт","Только вам")) else listOf(HiroDirectoryPerson("+79990000001","Анна Смирнова","Клиент команды"),HiroDirectoryPerson("+79990000002","Борис Волков","Клиент команды")),
             personal,query,true,false,true,false,false,"",{personal=it},{query=it},{},{opened=it},{adds++},{},{},{})}}
         capture("clients-light")
         compose.onNodeWithText("Мои контакты").performClick()
@@ -117,7 +117,7 @@ class NativeVisualSystemTest {
         compose.onNodeWithText("Продолжить").performScrollTo().performClick();assertEquals("https://example.invalid",server)
     }
     @Test @Config(qualifiers="w320dp-h740dp-mdpi") fun narrowDarkDirectoryUsesReadableWrappedRows(){
-        show(dark=true,scale=1.5f){shell("client-routing","Клиенты"){p->HiroDirectoryList(p,listOf(HiroDirectoryPerson("+79990000001","Очень длинное имя клиента организации","Кто привёл: другой сотрудник")),false,"",true,false,true,false,false,"",{},{},{},{},{},{},{},{})}}
+        show(dark=true,scale=1.5f){shell("client-routing","Клиенты"){p->HiroDirectoryList(p,listOf(HiroDirectoryPerson("+79990000001","Очень длинное имя клиента организации","Клиент команды")),false,"",true,false,true,false,false,"",{},{},{},{},{},{},{},{})}}
         compose.onNodeWithText("Клиенты команды").assertIsDisplayed()
         compose.onNodeWithContentDescription("Настройки").performClick().assertIsSelected()
         compose.onNodeWithContentDescription("Клиенты").performClick().assertIsSelected()

@@ -108,7 +108,7 @@ internal fun ClientDirectoryScreen(nav: NavController,auth: HiroAuthViewModel,us
     Scaffold(containerColor=MaterialTheme.colorScheme.background,topBar={WorkspaceHeader(title,if(page=="list")"Клиенты — общие, адресная книга — личная" else "",onBack=if(page=="list")null else {{move(if(page in setOf("incoming","outgoing","rules","preview"))"priority" else if(page=="review")"promote" else if(page in setOf("new","import"))"list" else "card")}},
         actions={if(page=="list")IconButton(onClick={work{reload()}},enabled=!busy){Icon(Icons.Default.Refresh,"Обновить")}})}){padding->
         if(page=="list") {
-            HiroDirectoryList(padding,entries.map{HiroDirectoryPerson(it.number,it.name,it.shared?.let(::clientOriginLabel)?:"Личный · только вам")},showPersonal,search,loaded,busy,privateReady,auth.personalContactsSyncEnabled(),user.role=="admin",error,
+            HiroDirectoryList(padding,entries.map{HiroDirectoryPerson(it.number,it.name,if(it.shared!=null)"Клиент команды" else "Личный · только вам")},showPersonal,search,loaded,busy,privateReady,auth.personalContactsSyncEnabled(),user.role=="admin",error,
                 onPersonal={showPersonal=it},onQuery={search=it},onSync={nav.navigate("workspace-sync")},onOpen={selected=it;page="card";error=""},onAdd={newContact()},
                 onImport={if(ContextCompat.checkSelfPermission(context,Manifest.permission.READ_CONTACTS)==PackageManager.PERMISSION_GRANTED)scan()else permission.launch(Manifest.permission.READ_CONTACTS)},
                 onExternal={newContact();external=true;page="promote"},onReload={work{reload()}})
@@ -125,7 +125,6 @@ internal fun ClientDirectoryScreen(nav: NavController,auth: HiroAuthViewModel,us
                 }}
                 if(canEdit)item{WorkspaceRow("Получать звонки этого номера раньше","Моё предпочтение, не назначение для всей команды",Icons.Default.PhoneCallback){nav.navigate("workspace-priority?caller=${Uri.encode(selected)}")}}
                 if(shared!=null){
-                    item{WorkspaceCard{Text("Кто привёл клиента",style=MaterialTheme.typography.titleMedium);Text(clientOriginLabel(shared));Text("Необязательная история появления. Это не ответственный менеджер и не получатель звонка.",style=MaterialTheme.typography.bodySmall)}}
                     item{WorkspaceRow("Очередь обращений и исходящая линия","Общие настройки клиента, не выбор менеджера",Icons.Default.Route){page="priority"}}
                     if(canEdit)item{TextButton(onClick={edit("edit")}){Text("Изменить данные клиента")}}
                     if(canEdit&&privateReady)item{TextButton(onClick={page="demote"}){Text("Убрать из общих клиентов")}}
@@ -136,10 +135,9 @@ internal fun ClientDirectoryScreen(nav: NavController,auth: HiroAuthViewModel,us
                 }
             }
             if(page in setOf("new","edit","promote")){
-                item{WorkspaceInfo(if(page=="promote")"Шаг 1 из 2. Эти данные станут видны команде только после подтверждения." else if(shared!=null&&page=="edit")"Изменения общего клиента увидят все сотрудники. Автор привлечения не изменится." else "Личная запись видна только вам. Сохранение не делает её общим клиентом.")}
+                item{WorkspaceInfo(if(page=="promote")"Шаг 1 из 2. Эти данные станут видны команде только после подтверждения." else if(shared!=null&&page=="edit")"Изменения общего клиента увидят все сотрудники." else "Личная запись видна только вам. Сохранение не делает её общим клиентом.")}
                 item{OutlinedTextField(name,{name=it;dirty=true},label={Text(if(page=="promote")"Имя для команды" else "Имя")},modifier=Modifier.fillMaxWidth())}
                 item{OutlinedTextField(number,{number=it;dirty=true},label={Text("Номер с кодом страны")},enabled=selected.isEmpty(),singleLine=true,keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Phone),modifier=Modifier.fillMaxWidth())}
-                if(page=="promote")item{WorkspaceCard{Text("Кто привёл");Text(if(external)"Не указан · другой источник" else user.displayName);Text("Отметка необязательна для внешнего источника. Обычное редактирование не меняет автора.",style=MaterialTheme.typography.bodySmall)}}
                 item{Button(enabled=!busy&&(page!="promote"||canEdit),onClick={
                     val canonical=validate()?:return@Button
                     if(page=="promote"){dirty=true;page="review"}
@@ -151,8 +149,8 @@ internal fun ClientDirectoryScreen(nav: NavController,auth: HiroAuthViewModel,us
                 },modifier=Modifier.fillMaxWidth()){Text(if(page=="promote")"Далее: кто увидит контакт" else "Сохранить изменения")}}
             }
             if(page=="review"){
-                item{WorkspaceCard{Text(name.ifBlank{number},style=MaterialTheme.typography.titleLarge);Text(number);Text("Увидят все авторизованные сотрудники этого сервера.");Text("Кто привёл: "+if(external)"не указан" else user.displayName)}}
-                item{WorkspaceInfo("Другие личные контакты не публикуются. Отметка «кто привёл» не закрепляет клиента за менеджером.")}
+                item{WorkspaceCard{Text(name.ifBlank{number},style=MaterialTheme.typography.titleLarge);Text(number);Text("Увидят все авторизованные сотрудники этого сервера.")}}
+                item{WorkspaceInfo("Другие личные контакты не публикуются. Правила звонков настраиваются отдельно.")}
                 item{Button(enabled=!busy&&canEdit,onClick={val canonical=validate()?:return@Button;if(directory.clients.any{it.number==canonical}){error="Контакт уже стал общим клиентом. Откройте его карточку вместо повторной публикации.";return@Button};work{
                     if(external&&user.role!="admin")throw HiroServerException("forbidden","Нужна роль администратора")
                     // Preserve a personal copy before promotion; never auto-publish a book.

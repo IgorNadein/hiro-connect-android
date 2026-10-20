@@ -153,6 +153,7 @@ class HiroAuthViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun signOut() {
+        SharedCallAudioCache.clear(getApplication())
         val session = (state.value as? HiroAuthState.SignedIn)?.session
         val currentUrl = session?.serverUrl ?: defaultServerUrl()
         refreshJob?.cancel()

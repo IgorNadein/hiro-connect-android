@@ -28,9 +28,7 @@ data class HiroPriorityRule(
     val direction: String = "both", val priority: Int = 50
 )
 @Serializable
-data class HiroClient(val number: String, val name: String, val rules: List<HiroPriorityRule>,
-    @SerialName("introduced_by_user_id") val introducedByUserId: String? = null,
-    @SerialName("introduced_by_name") val introducedByName: String = "")
+data class HiroClient(val number: String, val name: String, val rules: List<HiroPriorityRule>)
 @Serializable
 data class HiroClientDirectory(val revision: Long, val clients: List<HiroClient>)
 @Serializable

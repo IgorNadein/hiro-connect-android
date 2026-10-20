@@ -8,12 +8,13 @@ class PersonalContactModelsTest {
     @Test fun legacyAndExternalClientsHaveNoGuessedOrigin() {
         val old = hiroRoutingJson.decodeFromString<HiroClient>("""{"number":"+79990000001","name":"Legacy","rules":[],"updated_by":"editor"}""")
         val external = hiroRoutingJson.decodeFromString<HiroClient>("""{"number":"+79990000001","name":"Import","rules":[],"introduced_by_user_id":null}""")
-        assertNull(old.introducedByUserId); assertNull(external.introducedByUserId)
-        assertEquals("Кто привёл: не указано", clientOriginLabel(old))
+        assertFalse(hiroRoutingJson.encodeToString(old).contains("introduced"))
+        assertFalse(hiroRoutingJson.encodeToString(external).contains("introduced"))
     }
     @Test fun publicOriginIsDisplayOnlyAndNeverSentByTheEditor() {
         val client = hiroRoutingJson.decodeFromString<HiroClient>("""{"number":"+79990000001","name":"Client","rules":[],"introduced_by_user_id":"alice","introduced_by_name":"Alice","updated_by":"bob"}""")
-        assertEquals("Привёл: Alice", clientOriginLabel(client))
+        assertFalse(hiroRoutingJson.encodeToString(client).contains("alice"))
+        assertFalse(hiroRoutingJson.encodeToString(client).contains("introduced"))
         val update = hiroRoutingJson.encodeToString(HiroClientUpdate("Edited", emptyList()))
         assertFalse(update.contains("introduced")); assertFalse(update.contains("owner"))
     }

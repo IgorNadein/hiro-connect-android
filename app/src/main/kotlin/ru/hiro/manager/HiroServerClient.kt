@@ -325,6 +325,51 @@ class HiroServerClient {
             body = hiroRoutingJson.encodeToString(HiroPolicyUpdate(rules)), revision = revision)
     )
 
+    private fun callEndpoint(session:HiroSession,path:String):String {
+        val endpoint=resolve(session.apiBaseUrl+"/","calls"+path)
+        requireSameOrigin(session.serverUrl,endpoint,"Некорректный адрес журнала звонков")
+        return endpoint
+    }
+    private fun validatedCallID(id:String):String {
+        if(!id.matches(Regex("[a-f0-9]{32}")))throw HiroServerException("invalid_call","Некорректный звонок")
+        return id
+    }
+    fun sharedCalls(session:HiroSession,query:String,missed:Boolean,before:String):SharedCallPage = decode(
+        request(callEndpoint(session,"?q="+URLEncoder.encode(query,"UTF-8")+"&filter="+(if(missed)"missed" else "")+"&before="+URLEncoder.encode(before,"UTF-8")),bearerToken=session.accessToken))
+    fun liveTeamCalls(session:HiroSession):LiveTeamCalls = decode(request(callEndpoint(session,"/live"),bearerToken=session.accessToken))
+    fun sharedCall(session:HiroSession,id:String):SharedCallDetail = decode(request(callEndpoint(session,"/"+validatedCallID(id)),bearerToken=session.accessToken))
+    fun saveCallNote(session:HiroSession,id:String,text:String,revision:Long):SharedCallDetail = decode(
+        request(callEndpoint(session,"/"+validatedCallID(id)+"/note"),method="PUT",body=json.encodeToString(SharedCallNote(text)),bearerToken=session.accessToken,revision=revision))
+    fun joinTeamCall(session:HiroSession,id:String) {
+        request(callEndpoint(session,"/"+validatedCallID(id)+"/join"),method="POST",body=json.encodeToString(JoinCallRequest()),bearerToken=session.accessToken)
+    }
+    // Android's MediaPlayer must not carry a bearer token into redirects. Fetch
+    // to a private ephemeral file with the same session/refresh policy instead.
+    fun downloadCallRecording(session:HiroSession,id:String,destination:java.io.File) {
+        val connection=(URL(callEndpoint(session,"/"+validatedCallID(id)+"/recording")).openConnection() as HttpURLConnection).apply {
+            connectTimeout=7000;readTimeout=20000;instanceFollowRedirects=false
+            setRequestProperty("Authorization","Bearer ${session.accessToken}")
+            setRequestProperty("Accept","audio/wav")
+        }
+        var complete=false
+        try {
+            val code=connection.responseCode
+            if(code==401)throw HiroServerException("unauthorized","Сессия завершена")
+            if(code==403)throw HiroServerException("forbidden","Нет доступа к записи")
+            if(code!=200||connection.contentType?.substringBefore(';')!="audio/wav")throw HiroServerException("recording_unavailable","Запись недоступна. Обновите карточку звонка.")
+            val limit=256L*1024*1024
+            if(connection.contentLengthLong>limit)throw HiroServerException("recording_large","Запись слишком большая для загрузки на смартфон")
+            connection.inputStream.use { input->destination.outputStream().use{output->
+                val buffer=ByteArray(32768);var total=0L
+                while(true){if(Thread.currentThread().isInterrupted)throw java.io.InterruptedIOException();val n=input.read(buffer);if(n<0)break;total+=n;if(total>limit)throw HiroServerException("recording_large","Запись слишком большая для загрузки на смартфон");output.write(buffer,0,n)}
+                if(total<=44)throw HiroServerException("recording_unavailable","Файл записи пуст")
+            }}
+            complete=true
+        } catch(e:HiroServerException){throw e}
+        catch(_:Exception){throw HiroServerException("network","Не удалось загрузить запись. Проверьте соединение.")}
+        finally { connection.disconnect();if(!complete)destination.delete() }
+    }
+
     private inline fun <reified T> decode(body: String): T = try {
         json.decodeFromString(body)
     } catch (_: Exception) {

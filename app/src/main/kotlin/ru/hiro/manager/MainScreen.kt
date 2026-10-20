@@ -216,6 +216,7 @@ fun NavGraphBuilder.mainScreenRoute(
     navController: NavController,
     viewModel: ViewModel,
     serverSession: HiroSession,
+    serverAuth: HiroAuthViewModel,
     onServerLogout: () -> Unit,
     onRequestPermissions: () -> Unit,
     onRestartApp: () -> Unit,
@@ -226,6 +227,7 @@ fun NavGraphBuilder.mainScreenRoute(
             navController = navController,
             viewModel = viewModel,
             serverSession = serverSession,
+            serverAuth = serverAuth,
             onServerLogout = onServerLogout,
             onRequestPermissions = onRequestPermissions,
             onRestartClick = onRestartApp,
@@ -239,6 +241,7 @@ private fun MainScreen(
     navController: NavController,
     viewModel: ViewModel,
     serverSession: HiroSession,
+    serverAuth: HiroAuthViewModel,
     onServerLogout: () -> Unit,
     onRequestPermissions: () -> Unit,
     onRestartClick: () -> Unit,
@@ -521,7 +524,7 @@ private fun MainScreen(
             // Persistent, task-based navigation is owned by HiroWorkspaceShell.
         },
         content = { contentPadding ->
-            MainContent(navController, viewModel, contentPadding, serverSession.user.role)
+            MainContent(navController, viewModel, contentPadding, serverSession.user.role, serverAuth)
         }
     )
 }
@@ -859,7 +862,8 @@ private fun MainContent(
     navController: NavController,
     viewModel: ViewModel,
     contentPadding: PaddingValues,
-    serverRole: String
+    serverRole: String,
+    serverAuth: HiroAuthViewModel
 ) {
 
     var isRefreshing by remember { mutableStateOf(false) }
@@ -913,7 +917,8 @@ private fun MainContent(
     )
 
     if (calls.isEmpty()) {
-        WorkspaceCallsContent(navController, viewModel, contentPadding)
+        val repository=remember(serverAuth){AuthenticatedCallRepository(serverAuth)}
+        SharedCallsScreen(repository,contentPadding,onOpen={navController.navigate("workspace-call/$it")},onDial={navController.navigate("workspace-dialer")},onLocal={navController.navigate("workspace-local-calls")})
         return
     }
 
@@ -979,6 +984,8 @@ private fun MainContent(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         if(uas.value.size>1)AccountSpinner(ctx, viewModel, navController, serverRole)
+
+        TextButton(onClick={navController.navigate("workspace-team-calls")}) { Text("Звонки команды") }
 
         aorCalls.forEach { call ->
             key(call.callp) {
