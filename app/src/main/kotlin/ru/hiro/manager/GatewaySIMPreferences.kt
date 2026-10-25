@@ -42,7 +42,7 @@ internal fun GatewaySIMPreferences(auth: HiroAuthViewModel) {
             if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
             state?.let { current ->
                 if (current.gatewayChanged) Text("Телефон-шлюз заменён. Сохранённые назначения не переносятся автоматически.", color = MaterialTheme.colorScheme.error)
-                if (current.inventory.items.isEmpty()) Text("Активных SIM нет. Проверьте SIM и разрешение «Телефон» в приложении на шлюзе.")
+                if (current.smsReceiveSupported && current.inventory.items.isEmpty()) Text("Активных SIM нет. Проверьте SIM и разрешение «Телефон» в приложении на шлюзе.")
                 current.inventory.items.sortedBy { it.slotIndex }.forEach { sim ->
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text(sim.label, Modifier.weight(1f).padding(top = 12.dp))
@@ -57,9 +57,9 @@ internal fun GatewaySIMPreferences(auth: HiroAuthViewModel) {
                     }
                 }
                 val activeIDs = current.inventory.items.map { it.id }.toSet()
-                if (!current.gatewayChanged && (selected - activeIDs).isNotEmpty()) Text("Одна из ранее выбранных SIM не активна. При сохранении останутся только выбранные активные SIM.")
-                Text("Переключатели управляют входящими SMS и уведомлениями. Пустой выбор отключает их приём. SIM отправки выбирается отдельно в диалоге.")
-                Text("Звонки по отдельным SIM пока недоступны", style = MaterialTheme.typography.titleSmall)
+                if (current.smsReceiveSupported && !current.gatewayChanged && (selected - activeIDs).isNotEmpty()) Text("Одна из ранее выбранных SIM не активна. При сохранении останутся только выбранные активные SIM.")
+                if (current.smsReceiveSupported) Text("Переключатели управляют входящими SMS и уведомлениями. Пустой выбор отключает их приём. SIM отправки выбирается отдельно в диалоге.")
+                Text(if (current.smsReceiveSupported) "Звонки по отдельным SIM пока недоступны" else "Приём через телефон-шлюз недоступен", style = MaterialTheme.typography.titleSmall)
                 Text(current.voiceLimitation)
                 Button(enabled = !busy && current.smsReceiveSupported, onClick = { work {
                     val ids = if (current.gatewayChanged) emptyList() else (selected intersect activeIDs).sorted()

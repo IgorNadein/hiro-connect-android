@@ -23,7 +23,8 @@ data class HiroDiscovery(
 
 data class HiroLoginOptions(
     val passwordEnabled: Boolean,
-    val oidcEnabled: Boolean
+    val oidcEnabled: Boolean,
+    val oidcProviderName: String? = null
 )
 
 @Serializable

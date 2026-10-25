@@ -1,5 +1,6 @@
 package ru.hiro.manager
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,6 +14,7 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -37,10 +39,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -61,7 +65,7 @@ fun HiroLoginScreen(
 ) {
     var server by rememberSaveable(serverUrl) { mutableStateOf(serverUrl) }
     var username by rememberSaveable { mutableStateOf("") }
-    var password by rememberSaveable { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
     val activeOptions = options.takeIf {
         server.trim().trimEnd('/') == serverUrl.trim().trimEnd('/')
     }
@@ -104,7 +108,7 @@ fun HiroLoginScreen(
                     onValueChange = { server = it },
                     modifier = Modifier.fillMaxWidth(),
                     label = { Text("Адрес сервера") },
-                    placeholder = { Text("connect.example") },
+                    placeholder = { Text("https://example.com") },
                     singleLine = true,
                     shape = RoundedCornerShape(13.dp),
                     enabled = !signingIn,
@@ -135,7 +139,14 @@ fun HiroLoginScreen(
                             modifier = Modifier.fillMaxWidth().heightIn(min=50.dp),
                             shape=RoundedCornerShape(13.dp)
                         ) {
-                            Text("Войти через SSO")
+                            if (signingIn) {
+                                CircularProgressIndicator(Modifier.size(22.dp), color=MaterialTheme.colorScheme.onPrimary, strokeWidth=2.dp)
+                                Spacer(Modifier.width(8.dp))
+                            } else if (isCorpProvider(activeOptions.oidcProviderName)) {
+                                Image(painterResource(R.drawable.corp_icon), contentDescription=null, modifier=Modifier.size(28.dp))
+                                Spacer(Modifier.width(8.dp))
+                            }
+                            Text(oidcButtonLabel(activeOptions.oidcProviderName))
                         }
                     }
                     if (activeOptions.oidcEnabled && activeOptions.passwordEnabled) {
