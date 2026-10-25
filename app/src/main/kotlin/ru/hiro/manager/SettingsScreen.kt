@@ -215,22 +215,10 @@ private fun SettingsContent(
 ) {
     val ctx = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
-    var pendingAutoStart by remember { mutableStateOf(false) }
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
-                if (pendingAutoStart && isAppearOnTopPermissionGranted(ctx)) {
-                    viewModel.autoStart.value = true
-                    pendingAutoStart = false
-                }
-                if (viewModel.autoStart.value && !isAppearOnTopPermissionGranted(ctx)) {
-                    viewModel.autoStart.value = false
-                    if (Config.variable("auto_start") == "yes") {
-                        Config.replaceVariable("auto_start", "no")
-                        Config.save()
-                    }
-                }
                 val powerManager = ctx.getSystemService(POWER_SERVICE) as PowerManager
                 viewModel.batteryOptimizations.value =
                     !powerManager.isIgnoringBatteryOptimizations(ctx.packageName)
@@ -271,7 +259,6 @@ private fun SettingsContent(
     fun StartAutomatically() {
         val startAutomaticallyTitle = stringResource(R.string.start_automatically)
         val startAutomaticallyHelp = stringResource(R.string.start_automatically_help)
-        val appearOnTopPermissionMessage = stringResource(R.string.appear_on_top_permission)
         Row(
             Modifier.fillMaxWidth().padding(end = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -291,28 +278,7 @@ private fun SettingsContent(
             val startAutomatically by viewModel.autoStart.collectAsState()
             Switch(
                 checked = startAutomatically,
-                onCheckedChange = {
-                    if (it) {
-                        if (!isAppearOnTopPermissionGranted(ctx)) {
-                            dialogTitle.value = noticeTitleText
-                            dialogMessage.value = appearOnTopPermissionMessage
-                            firstButtonText.value = cancelButtonText
-                            onFirstClicked.value = {}
-                            lastButtonText.value = okButtonText
-                            onLastClicked.value = {
-                                val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION)
-                                pendingAutoStart = true
-                                ctx.startActivity(intent)
-                            }
-                            showDialog.value = true
-                            viewModel.autoStart.value = false
-                        }
-                        else
-                            viewModel.autoStart.value = true
-                    }
-                    else
-                        viewModel.autoStart.value = false
-                }
+                onCheckedChange = { viewModel.autoStart.value = it }
             )
         }
     }
@@ -1059,63 +1025,6 @@ private fun SettingsContent(
         }
     }
 
-    @RequiresApi(29)
-    @Composable
-    fun DefaultMessaging() {
-        val defaultMessagingAppTitle = stringResource(R.string.default_messaging_app)
-        val defaultMessagingAppHelp = stringResource(R.string.default_messaging_app_help)
-        val messagingRoleNotAvailableMessage = stringResource(R.string.messaging_role_not_available)
-        Row(
-            Modifier.fillMaxWidth().padding(end = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Start
-        ) {
-            val ctx = LocalContext.current
-            Text(text = defaultMessagingAppTitle,
-                modifier = Modifier
-                    .weight(1f)
-                    .clickable {
-                        alertTitle.value = defaultMessagingAppTitle
-                        alertMessage.value = defaultMessagingAppHelp
-                        showAlert.value = true
-                    },
-                fontSize = 18.sp
-            )
-            val defaultMessaging by viewModel.defaultMessaging.collectAsState()
-            val roleManager = ctx.getSystemService(ROLE_SERVICE) as RoleManager
-
-            val messagingRoleRequest = rememberLauncherForActivityResult(
-                contract = ActivityResultContracts.StartActivityForResult()
-            ) { _ ->
-                val isHeld = roleManager.isRoleHeld(RoleManager.ROLE_SMS)
-                viewModel.defaultMessaging.value = isHeld
-                viewModel.restart = true
-            }
-            Switch(
-                checked = defaultMessaging,
-                onCheckedChange = {
-                    viewModel.defaultMessaging.value = it
-                    if (it) {
-                        if (!roleManager.isRoleAvailable(RoleManager.ROLE_SMS)) {
-                            alertTitle.value = alertTitleText
-                            alertMessage.value = messagingRoleNotAvailableMessage
-                            showAlert.value = true
-                        }
-                        else
-                            if (!roleManager.isRoleHeld(RoleManager.ROLE_SMS))
-                                messagingRoleRequest.launch(roleManager.createRequestRoleIntent(RoleManager.ROLE_SMS))
-                    }
-                    else
-                        try {
-                            messagingRoleRequest.launch(Intent("android.settings.MANAGE_DEFAULT_APPS_SETTINGS"))
-                        } catch (e: ActivityNotFoundException) {
-                            Log.e(TAG, "ActivityNotFound exception: ${e.message}")
-                        }
-                }
-            )
-        }
-    }
-
     @Composable
     fun Debug() {
         val debugTitle = stringResource(R.string.debug)
@@ -1237,10 +1146,8 @@ private fun SettingsContent(
         AudioSettings(navController)
         if (VERSION.SDK_INT >= 29) {
             DefaultDialer()
-            DefaultMessaging()
             val defaultDialer by viewModel.defaultDialer.collectAsState()
-            val defaultMessaging by viewModel.defaultMessaging.collectAsState()
-            if (!defaultDialer && !defaultMessaging) BatteryOptimizations()
+            if (!defaultDialer) BatteryOptimizations()
         }
         else
             BatteryOptimizations()
@@ -1417,10 +1324,6 @@ private fun checkOnClick(ctx: Context, viewModel: SettingsViewModel): Boolean {
     if (viewModel.save) Config.save()
 
     return true
-}
-
-private fun isAppearOnTopPermissionGranted(ctx: Context): Boolean {
-    return Settings.canDrawOverlays(ctx)
 }
 
 private fun addMissingPorts(addressList: String): String {

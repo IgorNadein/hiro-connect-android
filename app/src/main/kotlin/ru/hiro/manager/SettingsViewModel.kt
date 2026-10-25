@@ -33,7 +33,6 @@ class SettingsViewModel: ViewModel() {
     val proximitySensing = MutableStateFlow(false)
     val defaultDialer = MutableStateFlow(false)
     val mobileAccount = MutableStateFlow(true)
-    val defaultMessaging = MutableStateFlow(false)
     val debug = MutableStateFlow(false)
     val sipTrace = MutableStateFlow(false)
 
@@ -81,7 +80,6 @@ class SettingsViewModel: ViewModel() {
             val roleManager = ctx.getSystemService(ROLE_SERVICE) as RoleManager
             defaultDialer.value = roleManager.isRoleHeld(RoleManager.ROLE_DIALER)
             mobileAccount.value = BaresipService.mobileAccount
-            defaultMessaging.value = roleManager.isRoleHeld(RoleManager.ROLE_SMS)
         }
 
         debug.value = Config.variable("log_level") == "0"

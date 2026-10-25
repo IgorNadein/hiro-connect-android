@@ -101,9 +101,36 @@ jobs:
         run: |
           test -f app/build/outputs/apk/release/app-release.apk
           APKSIGNER="$ANDROID_HOME/build-tools/36.0.0/apksigner"
+          AAPT2="$ANDROID_HOME/build-tools/36.0.0/aapt2"
           "$APKSIGNER" verify --verbose --print-certs app/build/outputs/apk/release/app-release.apk
           SIGNER_DIGEST=$("$APKSIGNER" verify --print-certs app/build/outputs/apk/release/app-release.apk | sed -n 's/^Signer #1 certificate SHA-256 digest: //p')
           test "$SIGNER_DIGEST" = '0e22bda4393b0fe6a09c786ba6078aa98d25cd4646939b5c12189126b4bc5266'
+          PERMISSIONS=$("$AAPT2" dump permissions app/build/outputs/apk/release/app-release.apk)
+          for FORBIDDEN in \
+            android.permission.SYSTEM_ALERT_WINDOW \
+            android.permission.SEND_SMS \
+            android.permission.RECEIVE_SMS \
+            android.permission.READ_SMS \
+            android.permission.RECEIVE_MMS \
+            android.permission.RECEIVE_WAP_PUSH; do
+            if grep -Fq "$FORBIDDEN" <<<"$PERMISSIONS"; then
+              echo "Forbidden manager permission: $FORBIDDEN" >&2
+              exit 1
+            fi
+          done
+          grep -Fq 'android.permission.REQUEST_INSTALL_PACKAGES' <<<"$PERMISSIONS"
+          MANIFEST=$($AAPT2 dump xmltree app/build/outputs/apk/release/app-release.apk --file AndroidManifest.xml)
+          for FORBIDDEN_COMPONENT in \
+            ru.hiro.manager.SmsReceiver \
+            ru.hiro.manager.MmsReceiver \
+            ru.hiro.manager.HeadlessSmsSendService \
+            ru.hiro.manager.BaresipMmsSentReceiver \
+            com.klinker.android.send_message.MmsFileProvider; do
+            if grep -Fq "$FORBIDDEN_COMPONENT" <<<"$MANIFEST"; then
+              echo "Forbidden manager component: $FORBIDDEN_COMPONENT" >&2
+              exit 1
+            fi
+          done
           mkdir release-assets
           cp app/build/outputs/apk/release/app-release.apk "release-assets/HI-RO-Connect-${RELEASE_TAG}.apk"
           cd release-assets
@@ -115,6 +142,10 @@ jobs:
           name: HI-RO Connect ${{ env.VERSION_NAME }}
           target_commitish: ${{ github.sha }}
           body: |
+            Удалены неиспользуемые локальные разрешения SMS/MMS, роль системного SMS-приложения и разрешение отображения поверх других окон. Сообщения менеджера по-прежнему передаются только через авторизованный сервер, автозапуск и входящие SIP-вызовы сохранены. Сборка содержит меньше чувствительных разрешений и лучше подходит для проверки Play Protect при установке из GitHub.
+
+            Если Android пишет, что пакет конфликтует с уже установленным, на телефоне осталась старая локальная/debug-сборка `ru.hiro.manager` с другой подписью. Её необходимо один раз удалить во всех профилях телефона, включая рабочий профиль или Samsung Secure Folder, и установить этот APK заново. Серверные звонки, сообщения и контакты при этом не удаляются; последующие официальные обновления устанавливаются поверх приложения.
+
             Исправлена панель разговора при одном SIP-аккаунте: управление доступно после ответа, а установленный вызов открывает экран разговора. Устранён повторный нижний отступ над навигацией.
             Источник журнала — сервер АТС. Обновлённый HI-RO Server подставляет имена из личных синхронизированных контактов вошедшего менеджера; если контакта нет, остаётся номер. Состав доступного журнала от адресной книги не зависит. Включить загрузку своих контактов можно в разделе «Контакты и синхронизация».
             Кнопка «Войти через CORP - HiRo» использует фирменную иконку. Сообщения об ошибках входа и недоступных разделах стали понятнее. Журнал и текущие разговоры показывают причину недоступности, а неподключённый телефон-шлюз не запрашивает разрешения на SIM.
