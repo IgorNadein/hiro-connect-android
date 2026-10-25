@@ -88,9 +88,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
 import java.net.InetAddress
 import java.net.URLDecoder
@@ -158,8 +160,11 @@ class BaresipService: Service() {
     private val registrationRetries = mutableMapOf<Long, Int>()
     private val gatewayMessageScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var gatewayMessageSyncJob: Job? = null
+    private var telephonyProfileSyncJob: Job? = null
+    private val telephonyProfileSyncSignal = Channel<Unit>(Channel.CONFLATED)
     private val healthIssues = linkedMapOf<String, String>()
     private var gatewaySyncFailures = 0
+    private var telephonyProfileSyncFailures = 0
 
     @SuppressLint("WakelockTimeout")
     override fun onCreate() {
@@ -189,6 +194,7 @@ class BaresipService: Service() {
         createNotificationChannels()
         snb = NotificationCompat.Builder(this, LOW_CHANNEL_ID)
         startGatewayMessageSync()
+        startTelephonyProfileSync()
 
         pm = getSystemService(POWER_SERVICE) as PowerManager
 
@@ -990,11 +996,16 @@ class BaresipService: Service() {
     override fun onDestroy() {
         super.onDestroy()
         Log.d(TAG, "onDestroy at Baresip Service")
+        val shouldRestart = isServiceRunning
         gatewayMessageScope.cancel()
+        isStartReceived = false
+        isServiceRunning = false
+        isNativeReady = false
+        activeManagedProfileId = ""
         nm.cancel(HEALTH_NOTIFICATION_ID)
         cleanService()
         instance = null
-        if (isServiceRunning) sendBroadcast(Intent("ru.hiro.manager.Restart"))
+        if (shouldRestart) sendBroadcast(Intent("ru.hiro.manager.Restart"))
     }
 
     @Suppress("unused")
@@ -1968,6 +1979,7 @@ class BaresipService: Service() {
 
         Handler(Looper.getMainLooper()).post {
             isNativeReady = true
+            requestTelephonyProfileSync()
             addMobileUserAgent()
             Account.saveAccounts()
             CallHistoryNew.save()
@@ -2032,6 +2044,8 @@ class BaresipService: Service() {
         quitTimer.cancel()
         cleanService()
         isServiceRunning = false
+        isStartReceived = false
+        activeManagedProfileId = ""
         postServiceEvent(ServiceEvent("stopped", arrayListOf(error), System.nanoTime()))
         stopSelf()
     }
@@ -2103,9 +2117,6 @@ class BaresipService: Service() {
                         }
                         replaceHealthIssues("gateway", gatewayConnectionIssues(gatewayStatus))
                         if (session.user.role == "manager" || session.user.role == "admin") {
-                            if (isServiceRunning) {
-                                ManagedTelephonyProfile.ensure(client.telephonyProfile(session))
-                            }
                             val lastSeen = syncStore.lastSeenMessageId(session)
                             val response = client.smsMessages(session, afterId = lastSeen ?: 0L)
                             val newestID = maxOf(response.nextAfterId, response.items.maxOfOrNull(HiroSmsMessage::id) ?: 0L, lastSeen ?: 0L)
@@ -2139,6 +2150,79 @@ class BaresipService: Service() {
                     }
                 }
                 delay(GATEWAY_MESSAGE_SYNC_INTERVAL_MILLIS)
+            }
+        }
+    }
+
+    /**
+     * Keep the authenticated server session and the native SIP account converged.
+     * This intentionally does not depend on gateway status or SMS synchronization:
+     * a disconnected gateway must not prevent a manager from registering with PBX.
+     */
+    private fun startTelephonyProfileSync() {
+        if (telephonyProfileSyncJob?.isActive == true) return
+        telephonyProfileSyncJob = gatewayMessageScope.launch {
+            val sessionStore = HiroSessionStore(this@BaresipService)
+            val client = HiroServerClient()
+            while (isActive) {
+                reconcileTelephonyProfile(sessionStore, client)
+                withTimeoutOrNull(TELEPHONY_PROFILE_SYNC_INTERVAL_MILLIS) {
+                    telephonyProfileSyncSignal.receive()
+                }
+            }
+        }
+    }
+
+    private fun requestTelephonyProfileSync() {
+        telephonyProfileSyncSignal.trySend(Unit)
+    }
+
+    private fun reconcileTelephonyProfile(
+        sessionStore: HiroSessionStore,
+        client: HiroServerClient
+    ) {
+        val initialSession = sessionStore.load()
+        if (initialSession == null || initialSession.user.role !in setOf("manager", "admin")) {
+            activeManagedProfileId = ""
+            ManagedTelephonyProfile.suspendManagedRegistrations()
+            telephonyProfileSyncFailures = 0
+            replaceHealthIssues("telephony-profile", emptyList())
+            return
+        }
+        if (!isServiceRunning || !isNativeReady) return
+
+        try {
+            var session = initialSession
+            val profile = try {
+                client.telephonyProfile(session)
+            } catch (error: HiroServerException) {
+                if (error.code != "unauthorized") throw error
+                session = HiroSessionRefresher.refresh(this, session)
+                client.telephonyProfile(session)
+            }
+            // Do not apply a profile fetched for a session which was replaced while
+            // the request was in flight.
+            if (sessionStore.load()?.sessionId != session.sessionId) {
+                Log.i(TAG, "Discarded telephony profile for replaced server session")
+                requestTelephonyProfileSync()
+                return
+            }
+            ManagedTelephonyProfile.ensure(profile)
+            activeManagedProfileId = profile.id
+            telephonyProfileSyncFailures = 0
+            replaceHealthIssues("telephony-profile", emptyList())
+        } catch (error: Exception) {
+            telephonyProfileSyncFailures += 1
+            Log.w(
+                TAG,
+                "Telephony profile sync failed (${telephonyProfileSyncFailures}): " +
+                    (error.message ?: error.javaClass.simpleName)
+            )
+            if (telephonyProfileSyncFailures >= HEALTH_FAILURE_THRESHOLD) {
+                replaceHealthIssues(
+                    "telephony-profile",
+                    listOf(getString(R.string.health_telephony_profile_unavailable))
+                )
             }
         }
     }
@@ -3715,6 +3799,7 @@ class BaresipService: Service() {
         var instance: BaresipService? = null
         var isServiceRunning = false
         var isNativeReady = false
+        var activeManagedProfileId by mutableStateOf("")
         var mobileAccount = false
         var mobileNumber = ""
         var isStartReceived = false
@@ -3758,6 +3843,10 @@ class BaresipService: Service() {
         var callHistory = ArrayList<CallHistoryNew>()
         var blocked = ArrayList<Blocked>()
         var blockRules = mutableListOf<BlockRule>()
+
+        fun notifyServerSessionChanged() {
+            instance?.requestTelephonyProfileSync()
+        }
 
         fun isBlocked(aor: String, uri: String): Boolean {
             for (rule in blockRules)

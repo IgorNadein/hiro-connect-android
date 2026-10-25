@@ -159,6 +159,8 @@ class HiroAuthViewModel(application: Application) : AndroidViewModel(application
         refreshJob?.cancel()
         store.clearSession()
         ManagedTelephonyProfile.suspendManagedRegistrations()
+        BaresipService.activeManagedProfileId = ""
+        notifyTelephonySessionChanged()
         _state.value = HiroAuthState.SignedOut(currentUrl)
         if (session != null) {
             viewModelScope.launch(Dispatchers.IO) {
@@ -232,7 +234,17 @@ class HiroAuthViewModel(application: Application) : AndroidViewModel(application
 
     private fun setSignedIn(session: HiroSession, retrySoon: Boolean = false) {
         _state.value = HiroAuthState.SignedIn(session)
+        notifyTelephonySessionChanged()
         scheduleRefresh(session, retrySoon)
+    }
+
+    /**
+     * Authentication and SIP are separate state machines. Notify the already-running
+     * SIP service explicitly instead of waiting for the unrelated SMS polling loop.
+     * A stopped service is started by MainActivity after the runtime permissions flow.
+     */
+    private fun notifyTelephonySessionChanged() {
+        BaresipService.notifyServerSessionChanged()
     }
 
     private fun scheduleRefresh(session: HiroSession, retrySoon: Boolean = false) {

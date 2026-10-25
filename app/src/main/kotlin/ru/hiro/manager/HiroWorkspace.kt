@@ -382,7 +382,11 @@ private fun WorkspacePolicies(nav: NavController,auth: HiroAuthViewModel,user: H
 private fun WorkspaceDialer(nav: NavController,calls: ViewModel,auth: HiroAuthViewModel,initial: String) {
     val context=LocalContext.current
     val agents by BaresipService.uas
-    val sip=agents.filter{!it.account.isMobile&&it.uap!=0L}
+    val activeManagedProfileId=BaresipService.activeManagedProfileId
+    val sip=agents.filter{
+        !it.account.isMobile&&it.uap!=0L&&
+            isCurrentTelephonyProfile(it.account.managedProfile,activeManagedProfileId)
+    }
     var number by rememberSaveable{mutableStateOf(initial)}
     var line by rememberSaveable{mutableStateOf("")}
     var aor by rememberSaveable{mutableStateOf("")}

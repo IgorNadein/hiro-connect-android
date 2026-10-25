@@ -24,6 +24,7 @@
     <string name="health_gateway_calls_unavailable">%1$s: Bluetooth calling is unavailable</string>
     <string name="health_gateway_sms_unavailable">%1$s: USB messaging is unavailable</string>
     <string name="health_telephony_unavailable">Telephony account %1$s is not registered</string>
+    <string name="health_telephony_profile_unavailable">The working telephony profile could not be synchronized with the server</string>
     <string name="new_call">New call</string>
     <string name="new_call_hint">Enter a number or select a contact</string>
     <string name="messages_short">Messages</string>

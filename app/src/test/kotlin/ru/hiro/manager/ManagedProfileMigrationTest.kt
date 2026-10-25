@@ -25,4 +25,10 @@ class ManagedProfileMigrationTest {
     @Test fun currentAccountIsNotRetired() {
         assertFalse(shouldRetireManagedProfile(profile.aor, profile.displayName, profile.authUsername, profile.outboundProxy, profile.id, profile))
     }
+    @Test fun onlyCurrentServerManagedProfileIsSelectable() {
+        assertFalse(isCurrentTelephonyProfile("personal-hmn-old", ""))
+        assertFalse(isCurrentTelephonyProfile("personal-hmn-old", profile.id))
+        assertTrue(isCurrentTelephonyProfile(profile.id, profile.id))
+        assertTrue(isCurrentTelephonyProfile("", profile.id))
+    }
 }
