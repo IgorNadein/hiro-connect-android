@@ -112,7 +112,7 @@ internal fun HiroWorkspaceShell(nav: NavController, calls: ViewModel, content: @
                   }
                 }
             }
-        }) { padding -> Box(Modifier.fillMaxSize().padding(bottom = padding.calculateBottomPadding())) { content() } }
+        }) { padding -> Box(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding)) { content() } }
         navigation.pending?.let { destination -> AlertDialog(onDismissRequest = { navigation.pending = null },
             title = { Text("Есть несохранённые изменения") }, text = { Text("Переход не сохранит черновик. Данные и настройки на сервере не изменятся.") },
             confirmButton = { TextButton(onClick = { navigation.dirty = false; navigation.pending = null; navigation.go(destination) }) { Text("Не сохранять и перейти") } },

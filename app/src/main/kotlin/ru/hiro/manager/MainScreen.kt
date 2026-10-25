@@ -256,6 +256,22 @@ private fun MainScreen(
     val ua = uas.value.find { it.account.aor == selectedAor }
     val call = ua?.currentCall()
 
+    // Call controls must update even when the single-account selector is hidden.
+    val accountUpdate by viewModel.accountUpdate.collectAsState()
+    val accountList by uas
+    LaunchedEffect(accountList, selectedAor, accountUpdate) {
+        val selected = accountList.find { it.account.aor == viewModel.selectedAor.value }
+            ?: Call.calls().firstOrNull()?.ua
+            ?: accountList.firstOrNull()
+        if (selected == null) {
+            if (viewModel.selectedAor.value.isNotEmpty()) viewModel.updateSelectedAor("")
+        } else {
+            if (selected.account.aor != viewModel.selectedAor.value) viewModel.updateSelectedAor(selected.account.aor)
+            val focused = viewModel.focusedCall.value?.takeIf { it.ua == selected && it in Call.calls() }
+            showCall(ctx, viewModel, selected, focused)
+        }
+    }
+
     val showKeyboard by viewModel.showKeyboard.collectAsState()
     val hideKeyboard by viewModel.hideKeyboard.collectAsState()
 
@@ -774,7 +790,7 @@ private fun IncomingCallCard(ctx: Context, call: Call) {
 }
 
 @Composable
-private fun CallCard(
+internal fun CallCard(
     ctx: Context,
     viewModel: ViewModel,
     call: Call?,
@@ -791,7 +807,7 @@ private fun CallCard(
         }
     }
     Column {
-            if (call != null && call.showHangupButton.value && !call.conferenceCall) {
+            if (call != null && call.status.value in setOf("answered", "connected") && !call.conferenceCall) {
                 ConnectedCallPanel(ctx, viewModel, call)
                 return@Column
             }
@@ -1049,19 +1065,6 @@ private fun AccountSpinner(
 
     var expanded by rememberSaveable { mutableStateOf(false) }
     val selected: String by viewModel.selectedAor.collectAsState()
-    val accountUpdate by viewModel.accountUpdate.collectAsState()
-    val uasValue by uas
-
-    LaunchedEffect(uasValue, selected, accountUpdate) {
-        val selected = viewModel.selectedAor.value
-        if (uas.value.isEmpty()) {
-            if (selected != "") viewModel.updateSelectedAor("")
-        }
-        else if (selected == "" || UserAgent.ofAor(selected) == null)
-            viewModel.updateSelectedAor(uas.value.first().account.aor)
-        val ua = UserAgent.ofAor(viewModel.selectedAor.value)
-        if (ua != null) showCall(ctx, viewModel, ua, viewModel.focusedCall.value)
-    }
 
     if (selected == "") {
         OutlinedButton(
@@ -2641,6 +2644,11 @@ fun handleServiceEvent(ctx: Context, viewModel: ViewModel, event: String, params
         }
         "call established" -> {
             (ctx as? Activity)?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            val establishedCall = Call.ofCallp(params[1] as Long)
+            if (establishedCall != null) {
+                spinToAor(viewModel, aor, establishedCall)
+                viewModel.navigateToHome()
+            }
             if (aor == viewModel.selectedAor.value) {
                 viewModel.dialerState.callButtonsEnabled.value = true // Re-enable dialer
                 val callp = params[1] as Long

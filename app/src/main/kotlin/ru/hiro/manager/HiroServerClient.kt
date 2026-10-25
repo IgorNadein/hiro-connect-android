@@ -46,7 +46,8 @@ class HiroServerClient {
         val discovery = decode<HiroDiscovery>(request(resolve(serverUrl, "/.well-known/hiro/client")))
         val options = HiroLoginOptions(
             passwordEnabled = discovery.authentication.any { it.type == "password" },
-            oidcEnabled = discovery.authentication.any { it.type == "oidc" }
+            oidcEnabled = discovery.authentication.any { it.type == "oidc" },
+            oidcProviderName = discovery.authentication.firstOrNull { it.type == "oidc" }?.name
         )
         if (!options.passwordEnabled && !options.oidcEnabled) {
             throw HiroServerException("authentication_unsupported", "Сервер не сообщил поддерживаемый способ входа")
@@ -409,14 +410,7 @@ class HiroServerClient {
             if (status !in 200..299) {
                 val serverError = runCatching { json.decodeFromString<HiroApiErrorEnvelope>(response).error }.getOrNull()
                 val serverMessage = serverError?.message
-                val message = when (status) {
-                    401 -> if (bearerToken == null) "Неверный логин или пароль" else "Сессия завершена"
-                    429 -> "Слишком много попыток. Попробуйте позже"
-                    412 -> "Настройки изменены другим пользователем. Обновите список и повторите изменение"
-                    403 -> "Недостаточно прав для изменения этих настроек"
-                    503 -> serverMessage ?: "Сервис временно недоступен"
-                    else -> serverMessage ?: "Сервер вернул ошибку $status"
-                }
+                val message = serverErrorMessage(status, bearerToken != null, URL(url).path, serverMessage)
                 throw HiroServerException(if (status == 401) "unauthorized" else serverError?.code ?: "http_error", message)
             }
             response

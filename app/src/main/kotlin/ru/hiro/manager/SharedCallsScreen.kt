@@ -76,8 +76,8 @@ internal fun SharedCallsScreen(repository:SharedCallRepository,padding:PaddingVa
             item{WorkspaceSearch(query,{query=it},"Имя, номер или менеджер")}
             item{Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){FilterChip(!missed,{missed=false},label={Text("Все")});FilterChip(missed,{missed=true},label={Text("Пропущенные")})}}
             history?.let{page->
-                if(page.problem.isNotBlank())item{WorkspaceInfo("Обновление журнала задерживается. Показаны ранее сохранённые звонки.",true)}
-                if(page.items.isEmpty())item{HiroEmpty(Icons.Outlined.Phone,"Звонков не найдено",if(query.isNotBlank()||missed)"Измените поиск или фильтр." else "Здесь появятся звонки, сохранённые сервером. История смартфона доступна отдельно.")}
+                journalProblemText(page.problem)?.let { problem -> item { WorkspaceInfo(problem,true) } }
+                if(page.items.isEmpty() && journalProblemText(page.problem)==null)item{HiroEmpty(Icons.Outlined.Phone,"Звонков не найдено",if(query.isNotBlank()||missed)"Измените поиск или фильтр." else "Здесь появятся звонки, сохранённые сервером. История смартфона доступна отдельно.")}
                 items(page.items,key={it.id}){call->
                     WorkspaceGroup {
                         HiroPersonRow(callTitle(call),call.number,callStatus(call)+" · "+if(call.recording)"Есть запись" else "Без записи",callTime(call.startedAt)){onOpen(call.id)}
@@ -96,7 +96,7 @@ internal fun SharedCallsScreen(repository:SharedCallRepository,padding:PaddingVa
         } else {
             val state=live
             if(state!=null) {
-                if(!state.ready)item{WorkspaceInfo("Нет актуального состояния АТС. Подключение к разговору недоступно.",true)}
+                if(!state.ready)item{WorkspaceInfo(liveUnavailableText(state.problem),true)}
                 else {
                     val rows=state.items.filter{if(tab==2)it.state=="waiting" else it.state=="active"}
                     item{Text(if(tab==2)"Ожидают ответа" else "Разговоры команды",style=MaterialTheme.typography.titleLarge)}
