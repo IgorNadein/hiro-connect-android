@@ -22,6 +22,7 @@
     <string name="health_gateway_calls_unavailable">%1$s: звонки по Bluetooth недоступны</string>
     <string name="health_gateway_sms_unavailable">%1$s: сообщения по USB недоступны</string>
     <string name="health_telephony_unavailable">Телефония %1$s не зарегистрирована</string>
+    <string name="health_telephony_profile_unavailable">Не удалось синхронизировать рабочий профиль телефонии с сервером</string>
     <string name="new_call">Новый звонок</string>
     <string name="new_call_hint">Введите номер или выберите контакт</string>
     <string name="messages_short">Сообщения</string>

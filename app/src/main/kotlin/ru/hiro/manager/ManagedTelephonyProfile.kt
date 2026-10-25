@@ -173,3 +173,8 @@ internal fun shouldRetireManagedProfile(
     val oldSameIdentity = oldDisplayName == profile.displayName && oldAuthUser == profile.authUsername
     return managed || legacy || oldSameIdentity
 }
+
+/** Manual accounts stay available, but a server-managed account is selectable
+ * only after it has been reconciled with the currently authenticated session. */
+internal fun isCurrentTelephonyProfile(managedId: String, activeManagedId: String): Boolean =
+    managedId.isEmpty() || (activeManagedId.isNotEmpty() && managedId == activeManagedId)
