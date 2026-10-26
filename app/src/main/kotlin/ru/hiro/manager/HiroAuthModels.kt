@@ -78,6 +78,19 @@ data class HiroTelephonyProfile(
 )
 
 @Serializable
+data class HiroEmployee(
+    val id: String,
+    val username: String,
+    @SerialName("display_name") val displayName: String,
+    val role: String,
+    val extension: String,
+    val available: Boolean = false
+)
+
+@Serializable
+data class HiroEmployeeDirectory(val items: List<HiroEmployee> = emptyList())
+
+@Serializable
 data class HiroApiErrorEnvelope(val error: HiroApiError? = null)
 
 @Serializable

@@ -53,7 +53,7 @@ import kotlinx.coroutines.launch
 internal data class WorkspaceTab(val route: String, val label: String)
 internal val workspaceTabs = listOf(WorkspaceTab("main", "Звонки"), WorkspaceTab("gateway-messages", "Сообщения"), WorkspaceTab("client-routing", "Клиенты"), WorkspaceTab("workspace-settings", "Настройки"))
 internal fun workspaceTabFor(route: String?): String = when {
-    route?.startsWith("workspace-call") == true || route in setOf("workspace-local-calls","workspace-team-calls") -> "main"
+    route?.startsWith("workspace-call") == true || route in setOf("workspace-local-calls","workspace-team-calls","workspace-employees") -> "main"
     route?.startsWith("workspace-dialer") == true -> "main"
     route?.startsWith("client-routing") == true -> "client-routing"
     route?.startsWith("gateway-messages") == true || route?.startsWith("chat") == true -> "gateway-messages"
@@ -193,7 +193,7 @@ internal fun WorkspaceCallsContent(nav: NavController, calls: ViewModel, padding
     val rows=journal.take(100).mapIndexed{i,call->HiroCallLogItem(i.toString(),Contact.findContact(call.peerUri)?.name()?:call.peerUri.removePrefix("sip:").substringBefore('@'),call.peerUri.removePrefix("sip:").substringBefore('@'),
         hiroListTime(call.stopTime.timeInMillis),call.direction=="in",call.direction=="in"&&call.startTime==null)}
     HiroCallsFeed(padding,agents.any{it.status==BaresipService.circleGreen.getValue(BaresipService.colorblind)},rows,query,missed,{query=it},{missed=it},
-        onDial={nav.navigate("workspace-dialer")},onHelp={nav.navigate("workspace-help")},onOpen={key->
+        onDial={nav.navigate("workspace-dialer")},onEmployees={nav.navigate("workspace-employees")},onHelp={nav.navigate("workspace-help")},onOpen={key->
             val call=journal.getOrNull(key.toIntOrNull()?:-1)?:return@HiroCallsFeed
             val direction=if(call.direction=="in"){if(call.startTime==null)CALL_MISSED_IN else CALL_DOWN_GREEN}else{if(call.startTime==null)CALL_MISSED_OUT else CALL_UP_GREEN}
             calls.selectCallRow(CallRow(call.aor,call.peerUri,direction,call.startTime,call.stopTime,call.recording.toList()));nav.navigate("call_details")
@@ -201,6 +201,7 @@ internal fun WorkspaceCallsContent(nav: NavController, calls: ViewModel, padding
 }
 
 fun NavGraphBuilder.workspaceRoutes(nav: NavController, calls: ViewModel, auth: HiroAuthViewModel, session: HiroSession) {
+    composable("workspace-employees") { WorkspaceEmployees(nav,auth,session) }
     composable("workspace-team-calls") {
         val repository=remember(auth,session.sessionId){AuthenticatedCallRepository(auth)}
         Scaffold(topBar={WorkspaceHeader("Звонки команды","Ваш разговор не прерывается",onBack={nav.navigateUp()})}){padding->
@@ -379,6 +380,60 @@ private fun WorkspacePolicies(nav: NavController,auth: HiroAuthViewModel,user: H
 }
 
 @Composable
+private fun WorkspaceEmployees(nav: NavController, auth: HiroAuthViewModel, session: HiroSession) {
+    var employees by remember { mutableStateOf<List<HiroEmployee>>(emptyList()) }
+    var query by rememberSaveable { mutableStateOf("") }
+    var busy by remember { mutableStateOf(true) }
+    var error by remember { mutableStateOf("") }
+    var reload by remember { mutableIntStateOf(0) }
+    LaunchedEffect(session.sessionId, reload) {
+        busy = true
+        error = ""
+        try {
+            employees = auth.authenticatedRequest { client, current -> client.employees(current) }.items
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            error = (e as? HiroServerException)?.userMessage ?: "Не удалось загрузить список сотрудников"
+        } finally {
+            busy = false
+        }
+    }
+    val filtered = employees.filter {
+        it.displayName.contains(query, true) || it.username.contains(query, true) || it.extension.contains(query)
+    }
+    WorkspacePage("Сотрудники", "Внутренние номера вашей организации", nav, action = {
+        IconButton(onClick = { reload++ }, enabled = !busy) { Icon(Icons.Outlined.Refresh, "Обновить") }
+    }) {
+        item { WorkspaceSearch(query, { query = it }, "Имя или внутренний номер") }
+        if (busy) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
+        if (error.isNotEmpty()) item { WorkspaceInfo(error, true) }
+        val own = employees.find { it.id == session.user.id }
+        if (own != null) item { WorkspaceInfo("Ваш внутренний номер: ${own.extension}") }
+        if (!busy && error.isEmpty() && filtered.isEmpty()) item {
+            HiroEmpty(Icons.Outlined.Badge, "Сотрудники не найдены", "На сервере пока нет других пользователей с доступом к телефонии.")
+        }
+        items(filtered, key = { it.id }) { employee ->
+            Surface(
+                onClick = { nav.navigate("workspace-dialer?number=${Uri.encode(employee.extension)}") },
+                shape = RoundedCornerShape(16.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerLowest
+            ) {
+                HiroPersonRow(
+                    employee.displayName,
+                    employee.extension,
+                    when {
+                        employee.id == session.user.id -> "Это вы · ${employee.role}"
+                        employee.available -> "Внутренний номер · доступен"
+                        else -> "Внутренний номер · сейчас не подключён"
+                    }
+                ) { nav.navigate("workspace-dialer?number=${Uri.encode(employee.extension)}") }
+            }
+        }
+    }
+}
+
+@Composable
 private fun WorkspaceDialer(nav: NavController,calls: ViewModel,auth: HiroAuthViewModel,initial: String) {
     val context=LocalContext.current
     val agents by BaresipService.uas
@@ -391,19 +446,24 @@ private fun WorkspaceDialer(nav: NavController,calls: ViewModel,auth: HiroAuthVi
     var line by rememberSaveable{mutableStateOf("")}
     var aor by rememberSaveable{mutableStateOf("")}
     var lines by remember{mutableStateOf<List<HiroVoiceLine>>(emptyList())}
+    var employees by remember{mutableStateOf<List<HiroEmployee>>(emptyList())}
     var error by remember{mutableStateOf("")}
+    var directoryError by remember{mutableStateOf("")}
     var ready by remember{mutableStateOf(false)}
     LaunchedEffect(Unit){try{lines=auth.authenticatedRequest{c,s->c.voiceLines(s)}.lines;ready=true}catch(e:CancellationException){throw e}catch(e:Exception){error=(e as? HiroServerException)?.userMessage?:"Не удалось загрузить линии"}}
+    LaunchedEffect(Unit){try{employees=auth.authenticatedRequest{c,s->c.employees(s)}.items}catch(e:CancellationException){throw e}catch(e:Exception){directoryError=(e as? HiroServerException)?.userMessage?:"Не удалось загрузить сотрудников"}}
     LaunchedEffect(sip.map{it.account.aor}){if(sip.none{it.account.aor==aor})aor=sip.firstOrNull()?.account?.aor.orEmpty()}
     val authState by auth.state.collectAsState()
     val user=(authState as? HiroAuthState.SignedIn)?.session?.user
-    val canCall=user?.role in setOf("manager","admin") && (ready||number=="600") && (normalizeClientNumber(number)!=null||number=="600") && sip.any{it.account.aor==aor}
+    val entered=number.trim()
+    val internal=employees.any{it.extension==entered}
+    val canCall=user?.role in setOf("manager","admin") && (internal||entered=="600"||(ready&&normalizeClientNumber(entered)!=null)) && sip.any{it.account.aor==aor}
     fun placeCall(){
         val ua=sip.find{it.account.aor==aor}?:return
         if(ua.status!=BaresipService.circleGreen.getValue(BaresipService.colorblind)){error="Рабочее SIP-подключение не зарегистрировано";return}
         val selected=lines.find{it.id==line&&it.enabled}
-        if(line.isNotEmpty()&&selected==null){error="Выбранная линия недоступна";return}
-        val extension=if(number=="600")"600" else "*88${selected?.code?:"0"}*${normalizeClientNumber(number)}"
+        if(!internal&&entered!="600"&&line.isNotEmpty()&&selected==null){error="Выбранная линия недоступна";return}
+        val extension=when{internal->entered;entered=="600"->"600";else->"*88${selected?.code?:"0"}*${normalizeClientNumber(entered)}"}
         calls.updateSelectedAor(aor)
         handleIntent(context,calls,Intent(context,MainActivity::class.java).putExtra("uap",ua.uap).putExtra("peer","sip:$extension@${Utils.aorDomain(aor)}"),"call")
         nav.navigate("main"){popUpTo("main")}
@@ -419,7 +479,10 @@ private fun WorkspaceDialer(nav: NavController,calls: ViewModel,auth: HiroAuthVi
         aor = aor,
         onAor = { aor = it },
         canCall = canCall,
-        error = error,
+        error = listOf(error,directoryError).filter{it.isNotEmpty()}.joinToString("\n"),
+        employees = employees,
+        currentUserId = user?.id.orEmpty(),
+        onEmployee = { number = it.extension },
         onCall = { placeCall() },
         onBack = { nav.navigateUp() }
     )

@@ -244,6 +244,12 @@ class HiroServerClient {
         return decode(request(endpoint, bearerToken = session.accessToken))
     }
 
+    fun employees(session: HiroSession): HiroEmployeeDirectory {
+        val endpoint = resolve(session.apiBaseUrl + "/", "directory/employees")
+        requireSameOrigin(session.serverUrl, endpoint, "Некорректный адрес справочника сотрудников")
+        return decode(request(endpoint, bearerToken = session.accessToken))
+    }
+
     fun smsOutbox(session: HiroSession): HiroSmsOutboxResponse {
         val endpoint = resolve(session.apiBaseUrl + "/", "sms/outbox")
         requireSameOrigin(session.serverUrl, endpoint, "Некорректный адрес SMS API")
