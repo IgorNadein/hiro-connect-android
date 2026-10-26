@@ -92,6 +92,7 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
 import java.net.InetAddress
@@ -2134,7 +2135,9 @@ class BaresipService: Service() {
                         gatewaySyncFailures = 0
                         replaceHealthIssues("server", emptyList())
                     } else {
-                        ManagedTelephonyProfile.suspendManagedRegistrations()
+                        withContext(Dispatchers.Main.immediate) {
+                            ManagedTelephonyProfile.suspendManagedRegistrations()
+                        }
                         gatewaySyncFailures = 0
                         replaceHealthIssues("server", emptyList())
                         replaceHealthIssues("gateway", emptyList())
@@ -2177,14 +2180,16 @@ class BaresipService: Service() {
         telephonyProfileSyncSignal.trySend(Unit)
     }
 
-    private fun reconcileTelephonyProfile(
+    private suspend fun reconcileTelephonyProfile(
         sessionStore: HiroSessionStore,
         client: HiroServerClient
     ) {
         val initialSession = sessionStore.load()
         if (initialSession == null || initialSession.user.role !in setOf("manager", "admin")) {
-            activeManagedProfileId = ""
-            ManagedTelephonyProfile.suspendManagedRegistrations()
+            withContext(Dispatchers.Main.immediate) {
+                activeManagedProfileId = ""
+                ManagedTelephonyProfile.suspendManagedRegistrations()
+            }
             telephonyProfileSyncFailures = 0
             replaceHealthIssues("telephony-profile", emptyList())
             return
@@ -2207,8 +2212,23 @@ class BaresipService: Service() {
                 requestTelephonyProfileSync()
                 return
             }
-            ManagedTelephonyProfile.ensure(profile)
-            activeManagedProfileId = profile.id
+            val applied = withContext(Dispatchers.Main.immediate) {
+                // Account allocation and registration cross the baresip JNI
+                // boundary and mutate service-owned UI state. Running them on
+                // the IO dispatcher is device-dependent and can silently leave
+                // a valid server session without ever sending SIP REGISTER.
+                if (!isServiceRunning || !isNativeReady) {
+                    false
+                } else {
+                    ManagedTelephonyProfile.ensure(profile)
+                    activeManagedProfileId = profile.id
+                    true
+                }
+            }
+            if (!applied) {
+                requestTelephonyProfileSync()
+                return
+            }
             telephonyProfileSyncFailures = 0
             replaceHealthIssues("telephony-profile", emptyList())
         } catch (error: Exception) {
