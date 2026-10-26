@@ -50,7 +50,7 @@ class NativeVisualSystemTest {
     @Test fun callsHaveWorkingMissedFilterAndSafeNavigation(){
         var query by mutableStateOf("");var missed by mutableStateOf(false);var opened=""
         val rows=listOf(HiroCallLogItem("anna","Анна Смирнова","+79990000001","10:24",true,true),HiroCallLogItem("boris","Борис Волков","+79990000002","Вчера",false,false))
-        show{shell("main","Звонки"){p->HiroCallsFeed(p,true,rows,query,missed,{query=it},{missed=it},{},{},{opened=it})}}
+        show{shell("main","Звонки"){p->HiroCallsFeed(p,true,rows,query,missed,{query=it},{missed=it},{},{},{},{opened=it})}}
         capture("calls-light")
         compose.onNodeWithText("Пропущенные").performClick()
         compose.onNodeWithText("Борис Волков").assertDoesNotExist()
@@ -85,7 +85,7 @@ class NativeVisualSystemTest {
         show{
             val nav=rememberNavController();val calls=remember{ViewModel()}
             HiroWorkspaceShell(nav,calls){NavHost(nav,startDestination="workspace-dialer"){
-                composable("workspace-dialer"){HiroDialer(number,{number=it},listOf("" to "Автоматически по правилам", "office" to "Офисная линия"),line,{line=it},emptyList(),"",{},number=="600","",{called++},{})}
+                composable("workspace-dialer"){HiroDialer(number,{number=it},listOf("" to "Автоматически по правилам", "office" to "Офисная линия"),line,{line=it},emptyList(),"",{},number=="600","",emptyList(),"",{},{called++},{})}
             }}
         }
         compose.onNodeWithText("Сообщения").assertDoesNotExist()
@@ -128,7 +128,7 @@ class NativeVisualSystemTest {
         compose.onNodeWithText("Войти через SSO").performScrollTo().assertIsDisplayed();capture("login-narrow-dark")
     }
     @Test @Config(qualifiers="w320dp-h740dp-mdpi") fun narrowDialerKeepsCallActionVisible(){
-        show(dark=true,scale=1.5f){HiroDialer("600",{},listOf("" to "Автоматически по правилам"),"",{},emptyList(),"",{},true,"",{},{})}
+        show(dark=true,scale=1.5f){HiroDialer("600",{},listOf("" to "Автоматически по правилам"),"",{},emptyList(),"",{},true,"",emptyList(),"",{},{},{})}
         compose.onNodeWithText("Позвонить").assertIsDisplayed()
         compose.onNodeWithContentDescription("Цифра #").performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("Позвонить").assertIsDisplayed();capture("dialer-narrow-dark")
