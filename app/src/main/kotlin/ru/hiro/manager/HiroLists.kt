@@ -27,6 +27,9 @@ internal fun HiroDialer(
     onAor: (String) -> Unit,
     canCall: Boolean,
     error: String,
+    employees: List<HiroEmployee>,
+    currentUserId: String,
+    onEmployee: (HiroEmployee) -> Unit,
     onCall: () -> Unit,
     onBack: () -> Unit
 ) {
@@ -64,14 +67,30 @@ internal fun HiroDialer(
             item { RoutingChoice("Линия для этого звонка", lineOptions, line, onLine) }
             if (sipOptions.size > 1) item { RoutingChoice("Рабочее SIP-подключение", sipOptions, aor, onAor) }
             item { HiroKeypad(number, onNumber) }
-            item { Text("Номер с кодом страны. 600 — локальная проверка звука.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            item { Text("Введите номер с кодом страны или внутренний номер сотрудника. 600 — локальная проверка звука.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            if (employees.isNotEmpty()) {
+                item { HiroSection("Сотрудники", "${employees.size}") }
+                itemsIndexed(employees, key = { _, employee -> employee.id }) { _, employee ->
+                    Surface(onClick = { onEmployee(employee) }, color = MaterialTheme.colorScheme.surfaceContainerLowest, shape = RoundedCornerShape(16.dp)) {
+                        HiroPersonRow(
+                            employee.displayName,
+                            employee.extension,
+                            when {
+                                employee.id == currentUserId -> "Ваш внутренний номер"
+                                employee.available -> "Доступен для внутреннего звонка"
+                                else -> "Сейчас не подключён"
+                            }
+                        ) { onEmployee(employee) }
+                    }
+                }
+            }
         }
     }
 }
 
 @Composable internal fun HiroCallsFeed(
     padding:PaddingValues,registered:Boolean,rows:List<HiroCallLogItem>,query:String,missedOnly:Boolean,
-    onQuery:(String)->Unit,onFilter:(Boolean)->Unit,onDial:()->Unit,onHelp:()->Unit,onOpen:(String)->Unit
+    onQuery:(String)->Unit,onFilter:(Boolean)->Unit,onDial:()->Unit,onEmployees:()->Unit,onHelp:()->Unit,onOpen:(String)->Unit
 ) {
     val filtered=rows.filter{(!missedOnly || it.missed) && (it.name.contains(query,true)||it.number.contains(query))}
     LazyColumn(Modifier.fillMaxSize().padding(padding),contentPadding=PaddingValues(18.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
@@ -90,6 +109,9 @@ internal fun HiroDialer(
                     } else Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                         Button(onClick=onHelp,modifier=Modifier.weight(1f).heightIn(min=48.dp)){Text("Проверить связь")}
                         OutlinedButton(onClick=onDial,modifier=Modifier.weight(1f).heightIn(min=48.dp)){Text("Набрать номер")}
+                    }
+                    TextButton(onClick=onEmployees,modifier=Modifier.fillMaxWidth()) {
+                        Icon(Icons.Outlined.Badge,null,Modifier.size(19.dp));Spacer(Modifier.width(8.dp));Text("Сотрудники и внутренние номера")
                     }
                 }
             }
