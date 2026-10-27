@@ -2148,7 +2148,11 @@ class BaresipService: Service() {
                     if(gatewaySyncFailures >= HEALTH_FAILURE_THRESHOLD) {
                         replaceHealthIssues(
                             "server",
-                            listOf(getString(R.string.health_server_unavailable))
+                            listOf(getString(
+                                if (error is HiroServerException && error.code in setOf("network", "tls"))
+                                    R.string.health_server_unavailable
+                                else R.string.health_server_check_failed
+                            ))
                         )
                     }
                 }
@@ -2248,6 +2252,7 @@ class BaresipService: Service() {
     }
 
     private fun gatewayConnectionIssues(status: HiroGatewayStatus): List<String> {
+        if (!status.hasConfiguredPhoneGateway()) return emptyList()
         val assignments = status.assignments.filter { it.role.equals("gateway", ignoreCase = true) }
         if(assignments.isEmpty()) {
             return if(!status.bluetooth.gateway.connected && !status.usb.ready) {
