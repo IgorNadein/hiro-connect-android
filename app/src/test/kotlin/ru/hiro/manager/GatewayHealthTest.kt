@@ -24,4 +24,11 @@ class GatewayHealthTest {
             gateway = HiroMobileGateway(available = true, deviceId = "phone")
         )).hasConfiguredPhoneGateway())
     }
+
+    @Test fun smsPollingDependsOnCapabilityAndKeepsOldServerCompatibility() {
+        assertFalse(HiroGatewayStatus(components = HiroServiceComponents(sms = "not_configured")).shouldSyncSms("manager"))
+        assertTrue(HiroGatewayStatus(components = HiroServiceComponents(sms = "configured")).shouldSyncSms("manager"))
+        assertTrue(HiroGatewayStatus().shouldSyncSms("manager"))
+        assertFalse(HiroGatewayStatus().shouldSyncSms("viewer"))
+    }
 }

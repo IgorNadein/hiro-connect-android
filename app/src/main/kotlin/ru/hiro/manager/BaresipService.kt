@@ -165,6 +165,7 @@ class BaresipService: Service() {
     private val telephonyProfileSyncSignal = Channel<Unit>(Channel.CONFLATED)
     private val healthIssues = linkedMapOf<String, String>()
     private var gatewaySyncFailures = 0
+    private var smsSyncFailures = 0
     private var telephonyProfileSyncFailures = 0
 
     @SuppressLint("WakelockTimeout")
@@ -2117,7 +2118,12 @@ class BaresipService: Service() {
                             client.gatewayStatus(session)
                         }
                         replaceHealthIssues("gateway", gatewayConnectionIssues(gatewayStatus))
-                        if (session.user.role == "manager" || session.user.role == "admin") {
+                        // An SMS problem must not make a successful server status
+                        // check look like the whole server is unavailable.
+                        gatewaySyncFailures = 0
+                        replaceHealthIssues("server", emptyList())
+                        if (gatewayStatus.shouldSyncSms(session.user.role)) {
+                          try {
                             val lastSeen = syncStore.lastSeenMessageId(session)
                             val response = client.smsMessages(session, afterId = lastSeen ?: 0L)
                             val newestID = maxOf(response.nextAfterId, response.items.maxOfOrNull(HiroSmsMessage::id) ?: 0L, lastSeen ?: 0L)
@@ -2131,17 +2137,33 @@ class BaresipService: Service() {
                                 newInbound.forEach(::notifyGatewayMessage)
                             }
                             syncStore.saveLastSeenMessageId(session, newestID)
+                            smsSyncFailures = 0
+                            replaceHealthIssues("sms", emptyList())
+                          } catch (error: kotlinx.coroutines.CancellationException) {
+                            throw error
+                          } catch (error: Exception) {
+                            Log.d(TAG, "Message sync deferred: ${error.message}")
+                            smsSyncFailures += 1
+                            if (smsSyncFailures >= HEALTH_FAILURE_THRESHOLD) {
+                                replaceHealthIssues("sms", listOf(getString(R.string.health_sms_sync_failed)))
+                            }
+                          }
+                        } else {
+                            smsSyncFailures = 0
+                            replaceHealthIssues("sms", emptyList())
                         }
-                        gatewaySyncFailures = 0
-                        replaceHealthIssues("server", emptyList())
                     } else {
                         withContext(Dispatchers.Main.immediate) {
                             ManagedTelephonyProfile.suspendManagedRegistrations()
                         }
                         gatewaySyncFailures = 0
+                        smsSyncFailures = 0
                         replaceHealthIssues("server", emptyList())
                         replaceHealthIssues("gateway", emptyList())
+                        replaceHealthIssues("sms", emptyList())
                     }
+                } catch (error: kotlinx.coroutines.CancellationException) {
+                    throw error
                 } catch (error: Exception) {
                     Log.d(TAG, "Gateway message sync deferred: ${error.message}")
                     gatewaySyncFailures += 1

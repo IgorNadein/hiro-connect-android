@@ -173,8 +173,12 @@ data class HiroGatewayStatus(
     val state: String = "idle",
     val bluetooth: HiroBluetoothStatus = HiroBluetoothStatus(),
     val usb: HiroUsbStatus = HiroUsbStatus(),
-    val assignments: List<HiroDeviceAssignment> = emptyList()
+    val assignments: List<HiroDeviceAssignment> = emptyList(),
+    val components: HiroServiceComponents? = null
 )
+
+@Serializable
+data class HiroServiceComponents(val sms: String = "unknown")
 
 @Serializable
 data class HiroBluetoothStatus(

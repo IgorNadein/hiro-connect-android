@@ -17,7 +17,8 @@
     <string name="health_channel_description">Предупреждения о недоступности сервера или телефона-шлюза</string>
     <string name="health_attention_title">Требуется внимание</string>
     <string name="health_server_unavailable">Сервер недоступен</string>
-    <string name="health_server_check_failed">Не удалось проверить состояние сервера или синхронизировать сообщения</string>
+    <string name="health_server_check_failed">Не удалось проверить состояние сервера</string>
+    <string name="health_sms_sync_failed">Не удалось синхронизировать сообщения</string>
     <string name="health_gateway_unavailable">Не подключён ни один телефон-шлюз</string>
     <string name="health_gateway_default_name">Телефон-шлюз</string>
     <string name="health_gateway_calls_unavailable">%1$s: звонки по Bluetooth недоступны</string>

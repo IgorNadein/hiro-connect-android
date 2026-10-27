@@ -19,7 +19,8 @@
     <string name="health_channel_description">Alerts when a server or phone gateway becomes unavailable</string>
     <string name="health_attention_title">Connection needs attention</string>
     <string name="health_server_unavailable">The server is unavailable</string>
-    <string name="health_server_check_failed">Could not check server status or synchronize messages</string>
+    <string name="health_server_check_failed">Could not check server status</string>
+    <string name="health_sms_sync_failed">Messages could not be synchronized</string>
     <string name="health_gateway_unavailable">No phone gateway is connected</string>
     <string name="health_gateway_default_name">Phone gateway</string>
     <string name="health_gateway_calls_unavailable">%1$s: Bluetooth calling is unavailable</string>
