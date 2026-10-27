@@ -12,14 +12,14 @@ import javax.crypto.spec.GCMParameterSpec
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
-class HiroSessionStore(context: Context) {
+class HiroSessionStore(context: Context) : RefreshSessionStore {
 
     private val preferences = context.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
     private val json = Json { ignoreUnknownKeys = true }
 
     fun lastServerUrl(): String? = preferences.getString(LAST_SERVER_URL, null)
 
-    fun save(session: HiroSession) {
+    fun save(session: HiroSession) = synchronized(sessionLock) {
         val cipher = Cipher.getInstance(TRANSFORMATION)
         cipher.init(Cipher.ENCRYPT_MODE, secretKey())
         cipher.updateAAD(AAD)
@@ -33,9 +33,9 @@ class HiroSessionStore(context: Context) {
         check(saved) { "Could not persist encrypted session" }
     }
 
-    fun load(): HiroSession? {
-        val payload = preferences.getString(ENCRYPTED_SESSION, null) ?: return null
-        return try {
+    override fun load(): HiroSession? = synchronized(sessionLock) {
+        val payload = preferences.getString(ENCRYPTED_SESSION, null) ?: return@synchronized null
+        try {
             val parts = payload.split('.', limit = 2)
             require(parts.size == 2)
             val cipher = Cipher.getInstance(TRANSFORMATION)
@@ -53,8 +53,21 @@ class HiroSessionStore(context: Context) {
         }
     }
 
-    fun clearSession() {
+    fun clearSession() = synchronized(sessionLock) {
         preferences.edit().remove(ENCRYPTED_SESSION).commit()
+        Unit
+    }
+
+    override fun saveIfCurrent(expected: HiroSession, replacement: HiroSession): Boolean = synchronized(sessionLock) {
+        if (load() != expected) return@synchronized false
+        save(replacement)
+        true
+    }
+
+    fun clearIfCurrent(expected: HiroSession): Boolean = synchronized(sessionLock) {
+        if (load() != expected) return@synchronized false
+        clearSession()
+        true
     }
 
     fun savePendingOIDC(pending: HiroPendingOIDC) {
@@ -111,6 +124,7 @@ class HiroSessionStore(context: Context) {
     }
 
     companion object {
+        private val sessionLock = Any()
         private const val PREFERENCES_NAME = "hiro_server_session"
         private const val ENCRYPTED_SESSION = "encrypted_session"
         private const val ENCRYPTED_OIDC = "encrypted_oidc"

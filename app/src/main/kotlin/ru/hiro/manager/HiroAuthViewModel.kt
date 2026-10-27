@@ -52,7 +52,9 @@ class HiroAuthViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch {
             val saved = withContext(Dispatchers.IO) { store.load() }
             if (saved == null) {
-                _state.value = HiroAuthState.SignedOut(defaultServerUrl())
+                if (_state.value is HiroAuthState.Checking) {
+                    _state.value = HiroAuthState.SignedOut(defaultServerUrl())
+                }
                 return@launch
             }
             restore(saved)
@@ -178,7 +180,8 @@ class HiroAuthViewModel(application: Application) : AndroidViewModel(application
             val refreshed = withContext(Dispatchers.IO) { HiroSessionRefresher.refresh(getApplication(), session) }
             if ((_state.value as? HiroAuthState.SignedIn)?.session?.sessionId != original.sessionId)
                 throw HiroServerException("unauthorized", "Сессия изменилась")
-            persistAndSignIn(refreshed)
+            if (!adoptStoredSession(refreshed))
+                throw HiroServerException("session_changed", "Сессия изменилась")
             session = refreshed
         }
         if (!accessTokenIsUsable(session)) renew()
@@ -198,12 +201,14 @@ class HiroAuthViewModel(application: Application) : AndroidViewModel(application
         if (accessTokenIsUsable(saved)) {
             try {
                 val validated = withContext(Dispatchers.IO) { client.validate(saved) }
-                persistAndSignIn(validated)
+                if (withContext(Dispatchers.IO) { store.saveIfCurrent(saved, validated) }) {
+                    adoptStoredSession(validated, allowChecking = true)
+                }
                 return
             } catch (error: HiroServerException) {
                 if (error.code != "unauthorized") {
                     // Offline is not logout: retain the encrypted device session and retry later.
-                    setSignedIn(saved)
+                    adoptStoredSession(saved, allowChecking = true)
                     return
                 }
             }
@@ -216,15 +221,28 @@ class HiroAuthViewModel(application: Application) : AndroidViewModel(application
             val refreshed = withContext(Dispatchers.IO) {
                 HiroSessionRefresher.refresh(getApplication(), session)
             }
-            persistAndSignIn(refreshed)
+            adoptStoredSession(refreshed, allowChecking = true)
         } catch (error: HiroServerException) {
             if (error.code == "unauthorized") {
-                revokeLocalSession(session.serverUrl)
+                revokeLocalSession(session)
+            } else if (error.code == "session_changed") {
+                return
             } else {
                 // The server may be unreachable for hours or months. The device stays signed in.
-                setSignedIn(session, retrySoon = true)
+                adoptStoredSession(session, allowChecking = true, retrySoon = true)
             }
         }
+    }
+
+    private suspend fun adoptStoredSession(session: HiroSession, allowChecking: Boolean = false, retrySoon: Boolean = false): Boolean {
+        if (withContext(Dispatchers.IO) { store.load() } != session) return false
+        val current = _state.value
+        val sameSession = (current as? HiroAuthState.SignedIn)?.session?.let {
+            it.sessionId == session.sessionId && it.serverUrl == session.serverUrl
+        } == true
+        if (!sameSession && !(allowChecking && current is HiroAuthState.Checking)) return false
+        setSignedIn(session, retrySoon)
+        return true
     }
 
     private suspend fun persistAndSignIn(session: HiroSession) {
@@ -267,13 +285,14 @@ class HiroAuthViewModel(application: Application) : AndroidViewModel(application
                     val refreshed = withContext(Dispatchers.IO) {
                         HiroSessionRefresher.refresh(getApplication(), current)
                     }
-                    withContext(Dispatchers.IO) { store.save(refreshed) }
-                    _state.value = HiroAuthState.SignedIn(refreshed)
-                    scheduleRefresh(refreshed)
+                    adoptStoredSession(refreshed)
                     return@launch
                 } catch (error: HiroServerException) {
                     if (error.code == "unauthorized") {
-                        revokeLocalSession(current.serverUrl)
+                        revokeLocalSession(current)
+                        return@launch
+                    }
+                    if (error.code == "session_changed") {
                         return@launch
                     }
                     // Network, TLS and temporary server failures never destroy the local session.
@@ -284,10 +303,15 @@ class HiroAuthViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    private fun revokeLocalSession(serverUrl: String) {
+    private fun revokeLocalSession(session: HiroSession) {
+        val current = _state.value
+        val sameSession = (current as? HiroAuthState.SignedIn)?.session?.let {
+            it.sessionId == session.sessionId && it.serverUrl == session.serverUrl
+        } == true
+        if (!sameSession && current !is HiroAuthState.Checking) return
+        if (!store.clearIfCurrent(session)) return
         refreshJob?.cancel()
-        store.clearSession()
-        _state.value = HiroAuthState.SignedOut(serverUrl, "Сессия отозвана на сервере")
+        _state.value = HiroAuthState.SignedOut(session.serverUrl, "Сессия отозвана на сервере")
     }
 
     private fun accessTokenIsUsable(session: HiroSession): Boolean {
