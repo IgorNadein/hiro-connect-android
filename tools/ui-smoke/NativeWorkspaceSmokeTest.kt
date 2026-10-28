@@ -62,6 +62,20 @@ class NativeWorkspaceSmokeTest {
         compose.onNodeWithText("Контакты и синхронизация").assertIsDisplayed()
         compose.onNodeWithText("Ваша личная адресная книга").assertDoesNotExist()
     }
+    @Test fun appearancePersistsSystemColorsChoice() {
+        val app = ApplicationProvider.getApplicationContext<Application>()
+        Preferences(app).dynamicColors = null
+        show()
+        compose.onNodeWithText("Найти настройку").performTextInput("оформление")
+        compose.onNodeWithText("Оформление").assertIsDisplayed().performClick()
+        compose.onNodeWithContentDescription("Цвета системы").assertIsOff().performClick()
+        compose.onNodeWithContentDescription("Цвета системы").assertIsOn()
+        org.junit.Assert.assertEquals(true, Preferences(app).dynamicColors)
+        compose.onNodeWithContentDescription("Цвета системы").performClick()
+        org.junit.Assert.assertEquals(false, Preferences(app).dynamicColors)
+        Preferences(app).dynamicColors = null
+    }
+
     @Test fun adminOrganizationAppearsInSearchAndDarkTheme() {
         show(role="admin",dark=true)
         compose.onNodeWithText("Найти настройку").performTextInput("организации")

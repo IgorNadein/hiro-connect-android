@@ -323,7 +323,7 @@ private fun WorkspaceAppearance(nav: NavController) {
                         Text("Цвета системы", style = MaterialTheme.typography.titleMedium)
                         Text("Использовать цвета оформления Android", style = MaterialTheme.typography.bodySmall)
                     }
-                    Switch(checked = dynamic, onCheckedChange = { enabled ->
+                    Switch(modifier = Modifier.semantics { contentDescription = "Цвета системы" }, checked = dynamic, onCheckedChange = { enabled ->
                         Preferences(context).dynamicColors = enabled
                         BaresipService.dynamicColors.value = enabled
                         if (Config.isInitialized()) {
