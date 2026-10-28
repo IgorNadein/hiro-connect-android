@@ -82,6 +82,7 @@ internal fun SharedCallsScreen(repository: SharedCallRepository, padding: Paddin
     var busy by remember { mutableStateOf(false) }
     var joiningBusy by remember { mutableStateOf(false) }
     var retry by remember { mutableIntStateOf(0) }
+    var finishedRefresh by remember { mutableIntStateOf(0) }
     var generation by remember { mutableIntStateOf(0) }
     var joining by remember { mutableStateOf<LiveTeamCall?>(null) }
     var callback by remember { mutableStateOf("") }
@@ -89,7 +90,7 @@ internal fun SharedCallsScreen(repository: SharedCallRepository, padding: Paddin
     val scope = rememberCoroutineScope()
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val missed = filter == CallsFilter.MISSED
-    LaunchedEffect(repository, query, missed, retry) {
+    LaunchedEffect(repository, query, missed, retry, finishedRefresh) {
         generation++
         historyError = ""; busy = true; history = null
         delay(250)
@@ -100,8 +101,17 @@ internal fun SharedCallsScreen(repository: SharedCallRepository, padding: Paddin
     }
     LaunchedEffect(repository, lifecycle, retry) {
         lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            var previousIds: Set<String>? = null
             while (true) {
-                try { live = repository.live(); liveError = "" }
+                try {
+                    val updated = repository.live()
+                    if (updated.ready) {
+                        val currentIds = updated.items.map { it.id }.toSet()
+                        if (previousIds?.any { it !in currentIds } == true) finishedRefresh++
+                        previousIds = currentIds
+                    }
+                    live = updated; liveError = ""
+                }
                 catch (e: CancellationException) { throw e }
                 catch (e: Exception) { liveError = callError(e); live = null }
                 delay(3000)
