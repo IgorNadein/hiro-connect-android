@@ -540,7 +540,7 @@ private fun MainScreen(
             // Persistent, task-based navigation is owned by HiroWorkspaceShell.
         },
         content = { contentPadding ->
-            MainContent(navController, viewModel, contentPadding, serverSession.user.role, serverAuth)
+            MainContent(navController, viewModel, contentPadding, serverSession.user.role, serverAuth, serverSession.user.displayName)
         }
     )
 }
@@ -554,11 +554,7 @@ private fun TopAppBar(
 ) {
     val ctx=LocalContext.current
     val activeCalls by viewModel.calls.collectAsState()
-    if(activeCalls.isEmpty()) {
-        WorkspaceHeader("Звонки",serverUser.displayName,statusInset=false,
-            actions={IconButton(onClick={navController.navigate("workspace-settings")}){Icon(Icons.Outlined.Settings,"Настройки")}})
-        return
-    }
+    if (activeCalls.isEmpty()) return
     var menuExpanded by remember { mutableStateOf(false) }
     var recording by remember { mutableStateOf(BaresipService.isRecOn) }
     val selectedAor by viewModel.selectedAor.collectAsState()
@@ -879,7 +875,8 @@ private fun MainContent(
     viewModel: ViewModel,
     contentPadding: PaddingValues,
     serverRole: String,
-    serverAuth: HiroAuthViewModel
+    serverAuth: HiroAuthViewModel,
+    serverUserName: String
 ) {
 
     var isRefreshing by remember { mutableStateOf(false) }
@@ -934,7 +931,7 @@ private fun MainContent(
 
     if (calls.isEmpty()) {
         val repository=remember(serverAuth){AuthenticatedCallRepository(serverAuth)}
-        SharedCallsScreen(repository,contentPadding,onOpen={navController.navigate("workspace-call/$it")},onDial={navController.navigate("workspace-dialer")},onLocal={navController.navigate("workspace-local-calls")})
+        SharedCallsScreen(repository,contentPadding,onOpen={navController.navigate("workspace-call/$it")},onDial={navController.navigate("workspace-dialer")},onLocal={navController.navigate("workspace-local-calls")},subtitle=serverUserName,onSettings={navController.navigate("workspace-settings")})
         return
     }
 

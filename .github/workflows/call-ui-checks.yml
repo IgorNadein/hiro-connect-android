@@ -1,0 +1,40 @@
+name: Calls interface checks
+on:
+  push:
+    branches: [feature/unified-calls-interface]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v6
+      - name: Install Android tools
+        run: |
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" 'platforms;android-37.0' 'build-tools;36.0.0' 'ndk;27.1.12297006' 'cmake;3.22.1'
+          sudo apt-get update
+          sudo apt-get install -y autoconf automake libtool m4 pkg-config
+          sudo ln -sf "$ANDROID_HOME/cmake/3.22.1/bin/cmake" /usr/bin/cmake
+          sudo ln -sf "$ANDROID_HOME/cmake/3.22.1/bin/ninja" /usr/bin/ninja
+      - name: Build native libraries
+        run: |
+          make -C libbaresip-android download-sources
+          ./scripts/apply-native-build-patch.sh
+          ./scripts/pin-native-dependencies.sh
+          ./scripts/apply-audio-patch.sh
+          make -C libbaresip-android libbaresip ANDROID_TARGET_ARCH=arm64-v8a NDK_PATH="$ANDROID_HOME/ndk/27.1.12297006" OUTPUT_DIR="$GITHUB_WORKSPACE/distribution"
+      - name: Test and compile debug
+        run: |
+          chmod +x gradlew
+          ./gradlew :app:testDebugUnitTest :app:assembleDebug
+          ./gradlew -I tools/ui-smoke/run-ui.init.gradle :app:testDebugUnitTest --tests ru.hiro.manager.NativeSharedCallsTest
+

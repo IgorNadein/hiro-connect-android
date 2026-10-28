@@ -30,7 +30,7 @@ class NativeSharedCallsTest {
             if(fail)throw HiroServerException("network","Сервер недоступен")
             return SharedCallPage(if(before.isBlank())listOf(first)else listOf(first.copy(id="b".repeat(32),name="Борис Волков",number="+79990000002")),if(before.isBlank())first.id else "",capabilities)
         }
-        override suspend fun live()=LiveTeamCalls(listOf(LiveTeamCall(first.id,first.number,state="active",duration=42,operators=first.operators)),ready=true,capabilities=capabilities)
+        override suspend fun live()=LiveTeamCalls(listOf(LiveTeamCall("c".repeat(32),"+79990000003",state="active",duration=42,operators=first.operators)),ready=true,capabilities=capabilities)
         override suspend fun detail(id:String)=SharedCallDetail(current,capabilities)
         override suspend fun note(id:String,text:String,revision:Long):SharedCallDetail {if(conflict)throw HiroServerException("note_conflict","Conflict");saved=text;current=current.copy(note=text,noteRevision=revision+1);return detail(id)}
         override suspend fun recording(id:String,destination:File){downloads++;throw HiroServerException("test","No real audio in tests")}
@@ -70,12 +70,20 @@ class NativeSharedCallsTest {
     }
     @Test fun liveCallsRequireExplicitJoinConfirmation(){
         val repo=FakeRepository();show(repo)
-        compose.onNodeWithText("Сейчас").performClick()
-        compose.onNodeWithText("Участвовать в разговоре").performScrollTo().performClick()
+        compose.onNodeWithText("+79990000003").performScrollTo().performClick()
         assertEquals(0,repo.joins)
         compose.onNodeWithText("Запросить подключение").performClick()
         compose.onNodeWithText("Запрос отправлен.",substring=true).assertIsDisplayed()
         assertEquals(1,repo.joins);capture("team-calls")
+    }
+    @Test fun searchAndFiltersAreHiddenUntilRequested() {
+        val repo=FakeRepository();show(repo)
+        compose.onNodeWithText("Имя, номер или менеджер").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Поиск звонков").performClick()
+        compose.onNodeWithText("Имя, номер или менеджер").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Фильтр звонков").performClick()
+        compose.onNodeWithText("Пропущенные").assertIsDisplayed().performClick()
+        compose.onNodeWithContentDescription("Фильтр: Пропущенные").assertExists()
     }
     @Test fun viewerCannotPlayAudioOrEditNotes(){
         val repo=FakeRepository("viewer");show(repo,details=true)
