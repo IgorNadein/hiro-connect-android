@@ -7,7 +7,7 @@ import androidx.core.content.edit
 class Preferences(context: Context) {
 
     companion object {
-        private const val DISPLAY_THEME = "ru.hiro.manager.DISPLAY_THEME"
+        internal const val DISPLAY_THEME = "ru.hiro.manager.DISPLAY_THEME"
         private const val DYNAMIC_COLORS = "ru.hiro.manager.DYNAMIC_COLORS"
     }
 
@@ -15,7 +15,8 @@ class Preferences(context: Context) {
 
     val hasDisplayTheme: Boolean get() = preferences.contains(DISPLAY_THEME)
 
-    var displayTheme = preferences.getInt(DISPLAY_THEME, -1)
+    var displayTheme: Int
+        get() = preferences.getInt(DISPLAY_THEME, -1)
         set(value) = preferences.edit { putInt(DISPLAY_THEME, value) }
 
     var dynamicColors: Boolean?

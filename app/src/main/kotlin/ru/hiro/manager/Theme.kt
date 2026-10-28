@@ -1,6 +1,9 @@
 package ru.hiro.manager
 
 import android.os.Build.VERSION
+import android.content.SharedPreferences
+import androidx.preference.PreferenceManager
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
@@ -16,6 +19,9 @@ import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -46,11 +52,24 @@ fun AppTheme(
     content: @Composable () -> Unit
 ) {
     val context = LocalContext.current
-    val useDarkTheme by remember { BaresipService.darkTheme }
+    val preferences = remember(context) { PreferenceManager.getDefaultSharedPreferences(context) }
+    var themeMode by remember(preferences) {
+        mutableIntStateOf(preferences.getInt(Preferences.DISPLAY_THEME, -1))
+    }
+    DisposableEffect(preferences) {
+        val listener = SharedPreferences.OnSharedPreferenceChangeListener { prefs, key ->
+            if (key == Preferences.DISPLAY_THEME) themeMode = prefs.getInt(key, -1)
+        }
+        preferences.registerOnSharedPreferenceChangeListener(listener)
+        onDispose { preferences.unregisterOnSharedPreferenceChangeListener(listener) }
+    }
     val useDynamicColors by remember { BaresipService.dynamicColors }
 
     val useActualDynamicColors = useDynamicColors && VERSION.SDK_INT >= 31
-    val isDark = useDarkTheme
+    val isDark = resolveDarkTheme(themeMode, isSystemInDarkTheme())
+    SideEffect {
+        if (BaresipService.darkTheme.value != isDark) BaresipService.darkTheme.value = isDark
+    }
 
     val colorScheme = when {
         useActualDynamicColors ->

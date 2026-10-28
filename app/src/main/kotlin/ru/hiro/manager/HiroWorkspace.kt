@@ -313,7 +313,7 @@ private fun WorkspaceAppearance(nav: NavController) {
     var selected by remember { mutableIntStateOf(Preferences(context).displayTheme) }
     WorkspacePage("Оформление","Только этот смартфон",nav) {
         item { WorkspaceCard { listOf(-1 to "Как в системе",1 to "Светлая тема",2 to "Тёмная тема").forEach { (mode,title) ->
-            Row(Modifier.fillMaxWidth().clickable { selected=mode;Preferences(context).displayTheme=mode;BaresipService.darkTheme.value=Utils.isThemeDark(context);AppCompatDelegate.setDefaultNightMode(mode) }.padding(vertical=8.dp),verticalAlignment=Alignment.CenterVertically) { RadioButton(selected==mode,onClick=null);Spacer(Modifier.width(12.dp));Text(title) }
+            Row(Modifier.fillMaxWidth().clickable { selected=mode;Preferences(context).displayTheme=mode;AppCompatDelegate.setDefaultNightMode(mode) }.padding(vertical=8.dp),verticalAlignment=Alignment.CenterVertically) { RadioButton(selected==mode,onClick=null);Spacer(Modifier.width(12.dp));Text(title) }
         } } }
         if (Build.VERSION.SDK_INT >= 31) item {
             val dynamic by remember { BaresipService.dynamicColors }

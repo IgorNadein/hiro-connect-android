@@ -28,6 +28,7 @@ class NativeWorkspaceSmokeTest {
         val auth=HiroAuthViewModel(app)
         val calls=ViewModel()
         val session=HiroSession("https://example.invalid","https://example.invalid/api/v1","unused","unused","2030-01-01T00:00:00Z","smoke","https://example.invalid/refresh","https://example.invalid/logout",HiroUser("smoke","smoke","Тестовый сотрудник",role))
+        Preferences(app).displayTheme = if (dark) androidx.appcompat.app.AppCompatDelegate.MODE_NIGHT_YES else androidx.appcompat.app.AppCompatDelegate.MODE_NIGHT_NO
         BaresipService.darkTheme.value=dark
         BaresipService.dynamicColors.value=false
         compose.setContent { AppTheme {
