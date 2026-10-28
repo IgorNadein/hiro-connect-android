@@ -13,7 +13,11 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -51,12 +55,13 @@ internal fun liveMatchesFilter(call: LiveTeamCall, filter: CallsFilter): Boolean
 }
 
 @Composable
-private fun CompactCallRow(title: String, subtitle: String, trailing: String, icon: ImageVector, description: String, onClick: (() -> Unit)? = null) {
+private fun CompactCallRow(title: String, subtitle: String, trailing: String, icon: ImageVector, description: String,
+    tint: Color = MaterialTheme.colorScheme.primary, onClick: (() -> Unit)? = null) {
     Surface(shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceContainerLowest,
         modifier = Modifier.fillMaxWidth().then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Icon(icon, contentDescription = description, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
+            Icon(icon, contentDescription = description, tint = tint, modifier = Modifier.size(18.dp))
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Text(title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if (subtitle.isNotBlank()) Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -70,7 +75,7 @@ private fun CompactCallRow(title: String, subtitle: String, trailing: String, ic
 @Composable
 internal fun SharedCallsScreen(repository: SharedCallRepository, padding: PaddingValues = PaddingValues(), initialTab: Int = 0,
     onOpen: (String) -> Unit, onDial: () -> Unit, onLocal: () -> Unit,
-    subtitle: String = "", onSettings: (() -> Unit)? = null, onBack: (() -> Unit)? = null) {
+    subtitle: String = "", onBack: (() -> Unit)? = null) {
     var filter by rememberSaveable { mutableStateOf(if (initialTab == 1) CallsFilter.ACTIVE else if (initialTab == 2) CallsFilter.WAITING else CallsFilter.ALL) }
     var filterDialog by remember { mutableStateOf(false) }
     var searchVisible by rememberSaveable { mutableStateOf(false) }
@@ -88,7 +93,16 @@ internal fun SharedCallsScreen(repository: SharedCallRepository, padding: Paddin
     var callback by remember { mutableStateOf("") }
     var menu by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    val focusRequester = remember { FocusRequester() }
+    val keyboard = LocalSoftwareKeyboardController.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
+    LaunchedEffect(searchVisible) {
+        if (searchVisible) {
+            withFrameNanos { }
+            focusRequester.requestFocus()
+            keyboard?.show()
+        } else keyboard?.hide()
+    }
     val missed = filter == CallsFilter.MISSED
     LaunchedEffect(repository, query, missed, retry, finishedRefresh) {
         generation++
@@ -126,23 +140,27 @@ internal fun SharedCallsScreen(repository: SharedCallRepository, padding: Paddin
     Scaffold(modifier = Modifier.fillMaxSize().padding(padding),
         containerColor = MaterialTheme.colorScheme.background,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        topBar = { WorkspaceHeader("Звонки", subtitle, onBack = onBack, statusInset = onBack != null, actions = {
+        topBar = { Column {
+            WorkspaceHeader("Звонки", subtitle, onBack = onBack, statusInset = onBack != null, actions = {
             IconButton(onClick = { filterDialog = true }) { Icon(Icons.Outlined.FilterList, if (filter == CallsFilter.ALL) "Фильтр звонков" else "Фильтр: ${filter.label}") }
             IconButton(onClick = { searchVisible = !searchVisible; if (!searchVisible) query = "" }) { Icon(Icons.Outlined.Search, if (searchVisible) "Закрыть поиск" else "Поиск звонков") }
             Box {
                 IconButton(onClick = { menu = true }) { Icon(Icons.Outlined.MoreVert, "Меню звонков") }
                 DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                     DropdownMenuItem(text = { Text("Обновить") }, onClick = { menu = false; retry++ })
-                    if (onSettings != null) DropdownMenuItem(text = { Text("Настройки") }, onClick = { menu = false; onSettings() })
                     DropdownMenuItem(text = { Text("История на этом смартфоне") }, onClick = { menu = false; onLocal() })
                 }
             }
-        }) },
+            })
+            if (searchVisible) {
+                WorkspaceSearch(query, { query = it }, "Имя, номер или менеджер",
+                    modifier = Modifier.padding(start = 18.dp, end = 18.dp, top = 12.dp, bottom = 4.dp).focusRequester(focusRequester))
+            }
+        } },
         floatingActionButton = { FloatingActionButton(onClick = onDial) { Icon(Icons.Outlined.Dialpad, "Набрать номер") } }
     ) { inner ->
         LazyColumn(Modifier.fillMaxSize().padding(inner), contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 12.dp, bottom = 96.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (searchVisible) item { WorkspaceSearch(query, { query = it }, "Имя, номер или менеджер") }
             if (historyError.isNotBlank()) item { WorkspaceInfo("История: $historyError", true); TextButton(onClick = { retry++ }) { Text("Повторить загрузку") } }
             if (liveError.isNotBlank()) item { WorkspaceInfo("Текущие звонки: $liveError", true) }
             live?.takeIf { !it.ready }?.let { item { WorkspaceInfo(liveUnavailableText(it.problem), true) } }
@@ -152,14 +170,23 @@ internal fun SharedCallsScreen(repository: SharedCallRepository, padding: Paddin
                 val active = call.state == "active"
                 CompactCallRow(call.number.ifBlank { "Номер не передан" }, call.operators.joinToString(" · "), callDuration(call.duration),
                     if (active) Icons.Outlined.PhoneInTalk else Icons.Outlined.Schedule, if (active) "Идёт разговор" else "В очереди",
-                    if (active && live?.capabilities?.join == true) ({ joining = call }) else null)
+                    tint = hiroTone(if (active) HiroTone.Good else HiroTone.Warning).second,
+                    onClick = if (active && live?.capabilities?.join == true) ({ joining = call }) else null)
             }
-            items(historyRows, key = { "history-" + it.id }) { call ->
-                val icon = when { call.status in setOf("missed", "busy") && call.direction == "inbound" -> Icons.Outlined.CallMissed
-                    call.direction == "outbound" -> Icons.Outlined.CallMade
-                    call.direction == "inbound" -> Icons.Outlined.CallReceived
-                    else -> Icons.Outlined.Phone }
-                CompactCallRow(callTitle(call), call.operators.joinToString(" · "), callTime(call.startedAt), icon, callStatus(call)) { onOpen(call.id) }
+            historyRows.groupBy { callDate(it.startedAt) }.forEach { (day, calls) ->
+                item(key = "date-" + (day?.toString() ?: "unknown")) {
+                    Text(callDayLabel(day), modifier = Modifier.padding(start = 4.dp, top = 12.dp, bottom = 2.dp),
+                        style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                items(calls, key = { "history-" + it.id }) { call ->
+                    val missed = call.status in setOf("missed", "busy") && call.direction == "inbound"
+                    val icon = when { missed -> Icons.Outlined.CallMissed
+                        call.direction == "outbound" -> Icons.Outlined.CallMade
+                        call.direction == "inbound" -> Icons.Outlined.CallReceived
+                        else -> Icons.Outlined.Phone }
+                    CompactCallRow(callTitle(call), call.operators.joinToString(" · "), callClockTime(call.startedAt), icon, callStatus(call),
+                        tint = if (missed) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary) { onOpen(call.id) }
+                }
             }
             val page = history
             if (page != null && filter !in setOf(CallsFilter.ACTIVE, CallsFilter.WAITING)) {

@@ -23,12 +23,14 @@ class NativeSharedCallsTest {
     @get:Rule val compose=createComposeRule()
     private val first=SharedCall("a".repeat(32),"+79990000001","Анна Смирнова","inbound","answered","2026-10-20T10:20:00Z",duration=124,talk=110,line="Рабочий номер",gatewayType="mobile",operators=listOf("Мария Волкова"),recording=true,source="pbx")
     private inner class FakeRepository(val role:String="manager"):SharedCallRepository {
-        var downloads=0;var joins=0;var fail=false;var conflict=false;var saved=""
+        var downloads=0;var joins=0;var fail=false;var conflict=false;var many=false;var saved=""
         var current=first
         val capabilities get()=CallCapabilities(role!="viewer",role!="viewer",role!="viewer")
         override suspend fun history(query:String,missed:Boolean,before:String):SharedCallPage {
             if(fail)throw HiroServerException("network","Сервер недоступен")
-            return SharedCallPage(if(before.isBlank())listOf(first)else listOf(first.copy(id="b".repeat(32),name="Борис Волков",number="+79990000002")),if(before.isBlank())first.id else "",capabilities)
+            val rows = if (many) (0..20).map { first.copy(id = "item-$it", name = "Звонок $it") }
+                else if (before.isBlank()) listOf(first) else listOf(first.copy(id="b".repeat(32),name="Борис Волков",number="+79990000002"))
+            return SharedCallPage(rows, if (before.isBlank() && !many) first.id else "", capabilities)
         }
         override suspend fun live()=LiveTeamCalls(listOf(LiveTeamCall("c".repeat(32),"+79990000003",state="active",duration=42,operators=first.operators)),ready=true,capabilities=capabilities)
         override suspend fun detail(id:String)=SharedCallDetail(current,capabilities)
@@ -80,10 +82,25 @@ class NativeSharedCallsTest {
         val repo=FakeRepository();show(repo)
         compose.onNodeWithText("Имя, номер или менеджер").assertDoesNotExist()
         compose.onNodeWithContentDescription("Поиск звонков").performClick()
-        compose.onNodeWithText("Имя, номер или менеджер").assertIsDisplayed()
+        compose.onNodeWithText("Имя, номер или менеджер").assertIsDisplayed().assertIsFocused()
         compose.onNodeWithContentDescription("Фильтр звонков").performClick()
         compose.onNodeWithText("Пропущенные").assertIsDisplayed().performClick()
         compose.onNodeWithContentDescription("Фильтр: Пропущенные").assertExists()
+    }
+    @Test fun searchStaysVisibleWhenHistoryScrolls() {
+        val repo = FakeRepository(); repo.many = true; show(repo)
+        compose.onNodeWithContentDescription("Поиск звонков").performClick()
+        compose.onNodeWithText("Имя, номер или менеджер").assertIsFocused()
+        scroll("Звонок 20")
+        compose.onNodeWithText("Звонок 20").assertIsDisplayed()
+        compose.onNodeWithText("Имя, номер или менеджер").assertIsDisplayed()
+        capture("pinned-call-search")
+    }
+    @Test fun settingsRemovedFromCallMenu() {
+        val repo = FakeRepository(); show(repo)
+        compose.onNodeWithContentDescription("Меню звонков").performClick()
+        compose.onNodeWithText("Обновить").assertIsDisplayed()
+        compose.onNodeWithText("Настройки").assertDoesNotExist()
     }
     @Test fun viewerCannotPlayAudioOrEditNotes(){
         val repo=FakeRepository("viewer");show(repo,details=true)

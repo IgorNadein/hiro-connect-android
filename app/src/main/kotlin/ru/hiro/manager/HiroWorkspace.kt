@@ -143,9 +143,9 @@ internal fun WorkspaceHeader(title:String,subtitle:String="",onBack:(()->Unit)?=
 }
 
 @Composable
-internal fun WorkspaceSearch(value:String,onValueChange:(String)->Unit,label:String) {
+internal fun WorkspaceSearch(value:String,onValueChange:(String)->Unit,label:String,modifier:Modifier=Modifier) {
     OutlinedTextField(value,onValueChange,placeholder={Text(label)},leadingIcon={Icon(Icons.Default.Search,null,modifier=Modifier.size(20.dp))},singleLine=true,
-        textStyle=MaterialTheme.typography.bodyLarge,shape=RoundedCornerShape(14.dp),modifier=Modifier.fillMaxWidth(),colors=OutlinedTextFieldDefaults.colors(unfocusedBorderColor=MaterialTheme.colorScheme.outlineVariant,unfocusedContainerColor=MaterialTheme.colorScheme.surfaceContainerLowest,focusedContainerColor=MaterialTheme.colorScheme.surfaceContainerLowest))
+        textStyle=MaterialTheme.typography.bodyLarge,shape=RoundedCornerShape(14.dp),modifier=modifier.fillMaxWidth(),colors=OutlinedTextFieldDefaults.colors(unfocusedBorderColor=MaterialTheme.colorScheme.outlineVariant,unfocusedContainerColor=MaterialTheme.colorScheme.surfaceContainerLowest,focusedContainerColor=MaterialTheme.colorScheme.surfaceContainerLowest))
 }
 
 @Composable

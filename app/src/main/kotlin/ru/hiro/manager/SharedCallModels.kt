@@ -5,6 +5,8 @@ import kotlinx.serialization.Serializable
 import java.io.File
 import java.time.Instant
 import java.time.ZoneId
+import java.time.LocalDate
+import java.util.Locale
 import java.time.format.DateTimeFormatter
 
 @Serializable
@@ -29,6 +31,16 @@ data class SharedCall(
 @Serializable data class JoinCallRequest(val transport:String="native")
 
 internal fun callTitle(call:SharedCall)=call.name.ifBlank{call.number.ifBlank{"Архивная запись"}}
+internal fun callDate(raw: String, zone: ZoneId = ZoneId.systemDefault()): LocalDate? =
+    runCatching { Instant.parse(raw).atZone(zone).toLocalDate() }.getOrNull()
+internal fun callDayLabel(date: LocalDate?, today: LocalDate = LocalDate.now()): String = when (date) {
+    null -> "Дата не указана"
+    today -> "Сегодня"
+    today.minusDays(1) -> "Вчера"
+    else -> date.format(DateTimeFormatter.ofPattern(if (date.year == today.year) "d MMMM" else "d MMMM yyyy", Locale("ru")))
+}
+internal fun callClockTime(raw: String, zone: ZoneId = ZoneId.systemDefault()): String =
+    runCatching { DateTimeFormatter.ofPattern("HH:mm").withZone(zone).format(Instant.parse(raw)) }.getOrDefault("—")
 internal fun callTime(raw:String):String=runCatching{DateTimeFormatter.ofPattern("dd MMM · HH:mm").withZone(ZoneId.systemDefault()).format(Instant.parse(raw))}.getOrDefault("Дата не указана")
 internal fun callDuration(seconds:Long):String { val safe=seconds.coerceAtLeast(0);return "%d:%02d".format(safe/60,safe%60) }
 internal fun callStatus(call:SharedCall):String=when(call.status){"missed"->"Пропущенный";"busy"->"Занято";"failed"->"Не состоялся";"answered"->if(call.direction=="outbound")"Исходящий" else "Входящий";else->"Архив"}

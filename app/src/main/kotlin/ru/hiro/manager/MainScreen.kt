@@ -521,7 +521,7 @@ private fun MainScreen(
         modifier = Modifier.fillMaxSize().imePadding(),
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
-            Column(modifier = Modifier.background(MaterialTheme.colorScheme.surfaceContainerLowest)) {
+            Column(modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainerLowest)) {
                 Spacer(Modifier.statusBarsPadding())
                 TopAppBar(
                     viewModel = viewModel,
@@ -931,7 +931,7 @@ private fun MainContent(
 
     if (calls.isEmpty()) {
         val repository=remember(serverAuth){AuthenticatedCallRepository(serverAuth)}
-        SharedCallsScreen(repository,contentPadding,onOpen={navController.navigate("workspace-call/$it")},onDial={navController.navigate("workspace-dialer")},onLocal={navController.navigate("workspace-local-calls")},subtitle=serverUserName,onSettings={navController.navigate("workspace-settings")})
+        SharedCallsScreen(repository,contentPadding,onOpen={navController.navigate("workspace-call/$it")},onDial={navController.navigate("workspace-dialer")},onLocal={navController.navigate("workspace-local-calls")},subtitle=serverUserName)
         return
     }
 
