@@ -106,21 +106,17 @@ object ManagedTelephonyProfile {
             existing.reRegister()
             lastRegistrationAttempt[existing.uap] = SystemClock.elapsedRealtime()
             Log.i(TAG, "Updated managed telephony profile ${profile.id}")
-        } else if (account.regint > 0) {
+        } else if (account.regint > 0 && !Api.ua_isregistered(existing.uap)) {
             val now = SystemClock.elapsedRealtime()
             val lastAttempt = lastRegistrationAttempt[existing.uap] ?: 0L
             if (now - lastAttempt >= registrationRefreshIntervalMillis) {
                 lastRegistrationAttempt[existing.uap] = now
-                if (Api.ua_isregistered(existing.uap)) {
-                    // baresip can retain a stale registered flag when the PBX
-                    // restarts underneath an established TCP flow. A quiet
-                    // refresh keeps the public contact current without making
-                    // the UI flash yellow every few seconds.
-                    Api.ua_register(existing.uap)
-                } else {
-                    existing.reRegister()
-                }
-                Log.i(TAG, "Refreshed managed telephony profile ${profile.id}")
+                // Native baresip already refreshes a healthy registration.
+                // Re-register only after it reports a failure: forcing a new
+                // REGISTER every sync cycle briefly changes the account to
+                // "registering" and makes the workspace reject valid calls.
+                existing.reRegister()
+                Log.i(TAG, "Recovering managed telephony profile ${profile.id}")
             }
         }
         return changed

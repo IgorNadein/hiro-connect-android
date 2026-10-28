@@ -185,6 +185,7 @@ internal fun WorkspaceRow(title: String, subtitle: String, icon: ImageVector = I
 @Composable
 internal fun WorkspaceCallsContent(nav: NavController, calls: ViewModel, padding: PaddingValues) {
     val agents by BaresipService.uas
+    val activeManagedProfileId=BaresipService.activeManagedProfileId
     val live by calls.calls.collectAsState()
     var journal by remember { mutableStateOf<List<CallHistoryNew>>(emptyList()) }
     var query by rememberSaveable { mutableStateOf("") }
@@ -192,7 +193,12 @@ internal fun WorkspaceCallsContent(nav: NavController, calls: ViewModel, padding
     LaunchedEffect(live) { while(true) { journal = synchronized(BaresipService.callHistory) { BaresipService.callHistory.toList().asReversed() }; delay(1500) } }
     val rows=journal.take(100).mapIndexed{i,call->HiroCallLogItem(i.toString(),Contact.findContact(call.peerUri)?.name()?:call.peerUri.removePrefix("sip:").substringBefore('@'),call.peerUri.removePrefix("sip:").substringBefore('@'),
         hiroListTime(call.stopTime.timeInMillis),call.direction=="in",call.direction=="in"&&call.startTime==null)}
-    HiroCallsFeed(padding,agents.any{it.status==BaresipService.circleGreen.getValue(BaresipService.colorblind)},rows,query,missed,{query=it},{missed=it},
+    val registered=agents.any{
+        !it.account.isMobile&&
+            isCurrentTelephonyProfile(it.account.managedProfile,activeManagedProfileId)&&
+            it.status==BaresipService.circleGreen.getValue(BaresipService.colorblind)
+    }
+    HiroCallsFeed(padding,registered,rows,query,missed,{query=it},{missed=it},
         onDial={nav.navigate("workspace-dialer")},onEmployees={nav.navigate("workspace-employees")},onHelp={nav.navigate("workspace-help")},onOpen={key->
             val call=journal.getOrNull(key.toIntOrNull()?:-1)?:return@HiroCallsFeed
             val direction=if(call.direction=="in"){if(call.startTime==null)CALL_MISSED_IN else CALL_DOWN_GREEN}else{if(call.startTime==null)CALL_MISSED_OUT else CALL_UP_GREEN}
@@ -493,7 +499,6 @@ private fun WorkspaceDialer(nav: NavController,calls: ViewModel,auth: HiroAuthVi
     val canCall=user?.role in setOf("manager","admin") && (internal||entered=="600"||(ready&&normalizeClientNumber(entered)!=null)) && sip.any{it.account.aor==aor}
     fun placeCall(){
         val ua=sip.find{it.account.aor==aor}?:return
-        if(ua.status!=BaresipService.circleGreen.getValue(BaresipService.colorblind)){error="Рабочее SIP-подключение не зарегистрировано";return}
         val selected=lines.find{it.id==line&&it.enabled}
         if(!internal&&entered!="600"&&line.isNotEmpty()&&selected==null){error="Выбранная линия недоступна";return}
         val extension=when{internal->entered;entered=="600"->"600";else->"*88${selected?.code?:"0"}*${normalizeClientNumber(entered)}"}

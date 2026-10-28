@@ -1173,8 +1173,14 @@ class BaresipService: Service() {
                         if (ev[0] == "unregistering") {
                             registrationRetries.remove(uap)
                             setHealthIssue("sip:$aor", null)
+                            ua.updateStatus(circleYellow.getValue(colorblind))
+                        } else if (ua.status != circleGreen.getValue(colorblind)) {
+                            // A periodic REGISTER refresh does not make the
+                            // established account unavailable. Keep the last
+                            // confirmed healthy state until refresh succeeds
+                            // or an explicit failure event arrives.
+                            ua.updateStatus(circleYellow.getValue(colorblind))
                         }
-                        ua.updateStatus(circleYellow.getValue(colorblind))
                         updateStatusNotification()
                         if (isMainVisible) registrationUpdate.postValue(System.currentTimeMillis())
                         return
