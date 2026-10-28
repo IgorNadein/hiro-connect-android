@@ -4,6 +4,7 @@ import android.os.Build.VERSION
 import android.content.SharedPreferences
 import com.materialkolor.PaletteStyle
 import com.materialkolor.dynamicColorScheme
+import com.materialkolor.dynamiccolor.ColorSpec
 import androidx.compose.ui.graphics.Color
 import androidx.preference.PreferenceManager
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -98,7 +99,8 @@ fun AppTheme(
             else
                 dynamicLightColorScheme(context)
         seed != null -> dynamicColorScheme(seedColor = seed, isDark = isDark,
-            style = if (accent == "mono") PaletteStyle.Monochrome else PaletteStyle.TonalSpot)
+            style = if (accent == "mono") PaletteStyle.Monochrome else PaletteStyle.TonalSpot,
+            specVersion = ColorSpec.SpecVersion.SPEC_2025)
         isDark -> darkColorScheme()
         else -> lightColorScheme()
     }

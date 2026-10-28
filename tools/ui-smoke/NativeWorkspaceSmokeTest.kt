@@ -74,12 +74,12 @@ class NativeWorkspaceSmokeTest {
         org.junit.Assert.assertEquals(true, Preferences(app).dynamicColors)
         compose.onNodeWithContentDescription("Цвета системы").performClick()
         org.junit.Assert.assertEquals(false, Preferences(app).dynamicColors)
-        compose.onNodeWithText("Синий").performClick()
+        compose.onNodeWithText("Синий").performScrollTo().performClick()
         org.junit.Assert.assertEquals("blue", Preferences(app).accentColor)
-        compose.onNodeWithContentDescription("Цвета системы").performClick()
+        compose.onNodeWithContentDescription("Цвета системы").performScrollTo().performClick()
         compose.onNodeWithText("Синий").assertDoesNotExist()
         compose.onNodeWithContentDescription("Цвета системы").performClick()
-        compose.onNodeWithText("Синий").assertIsDisplayed()
+        compose.onNodeWithText("Синий").performScrollTo().assertIsDisplayed()
         org.junit.Assert.assertEquals("blue", Preferences(app).accentColor)
         Preferences(app).dynamicColors = null
         Preferences(app).accentColor = "default"
