@@ -93,6 +93,7 @@ jobs:
           ./gradlew -I tools/ui-smoke/run-ui.init.gradle :app:testDebugUnitTest \
             --tests ru.hiro.manager.NativePrioritySmokeTest \
             --tests ru.hiro.manager.NativeWorkspaceSmokeTest \
+            --tests ru.hiro.manager.NativeThemeTest \
             --tests ru.hiro.manager.NativeVisualSystemTest \
             --tests ru.hiro.manager.NativeCallDetailsTest \
             --tests ru.hiro.manager.NativeCallControlsTest \
@@ -142,10 +143,11 @@ jobs:
           name: HiRo Connect ${{ env.VERSION_NAME }}
           target_commitish: ${{ github.sha }}
           body: |
-            Основой оформления HiRo Connect стал Material 3.
+            Обновлены журнал звонков и настройки оформления HiRo Connect.
 
-            - Нижняя панель и базовые компоненты используют стандартную тему Android.
-            - В настройках можно выбрать светлую, тёмную или системную тему и включить системные цвета на поддерживаемых устройствах.
+            - Поиск закреплён над журналом и автоматически открывает клавиатуру.
+            - Звонки сгруппированы по датам, значки разных типов вызовов различаются цветом.
+            - Системная тема следует настройке телефона, доступен выбор акцентного цвета или системной палитры.
             - Выбор оформления сохраняется после перезапуска.
 
             Version: ${{ env.VERSION_NAME }}
