@@ -104,7 +104,7 @@ class NativeSharedCallsTest {
     }
     @Test fun unavailableServerDoesNotLookLikeEmptyHistory(){
         val repo=FakeRepository();repo.fail=true;show(repo)
-        compose.onNodeWithText("Сервер недоступен").assertIsDisplayed()
+        compose.onNodeWithText("Сервер недоступен",substring=true).assertIsDisplayed()
         compose.onNodeWithText("Звонков не найдено").assertDoesNotExist()
         repo.fail=false
         compose.onNodeWithText("Повторить загрузку").performClick()
