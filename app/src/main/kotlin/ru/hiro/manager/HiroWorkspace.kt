@@ -311,12 +311,13 @@ private fun WorkspaceProfile(nav: NavController,calls: ViewModel,auth: HiroAuthV
 private fun WorkspaceAppearance(nav: NavController) {
     val context=LocalContext.current
     var selected by remember { mutableIntStateOf(Preferences(context).displayTheme) }
+    var accent by remember { mutableStateOf(Preferences(context).accentColor) }
+    val dynamic by remember { BaresipService.dynamicColors }
     WorkspacePage("Оформление","Только этот смартфон",nav) {
         item { WorkspaceCard { listOf(-1 to "Как в системе",1 to "Светлая тема",2 to "Тёмная тема").forEach { (mode,title) ->
             Row(Modifier.fillMaxWidth().clickable { selected=mode;Preferences(context).displayTheme=mode;AppCompatDelegate.setDefaultNightMode(mode) }.padding(vertical=8.dp),verticalAlignment=Alignment.CenterVertically) { RadioButton(selected==mode,onClick=null);Spacer(Modifier.width(12.dp));Text(title) }
         } } }
         if (Build.VERSION.SDK_INT >= 31) item {
-            val dynamic by remember { BaresipService.dynamicColors }
             WorkspaceCard {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
@@ -331,6 +332,21 @@ private fun WorkspaceAppearance(nav: NavController) {
                             Config.save()
                         }
                     })
+                }
+            }
+        }
+        if (!dynamic || Build.VERSION.SDK_INT < 31) item {
+            WorkspaceCard {
+                Text("Акцентный цвет", style = MaterialTheme.typography.titleMedium)
+                accentOptions.forEach { (id, label) ->
+                    Row(Modifier.fillMaxWidth().clickable {
+                        accent = id
+                        Preferences(context).accentColor = id
+                    }.padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                        RadioButton(selected = accent == id, onClick = null)
+                        Spacer(Modifier.width(12.dp))
+                        Text(label)
+                    }
                 }
             }
         }

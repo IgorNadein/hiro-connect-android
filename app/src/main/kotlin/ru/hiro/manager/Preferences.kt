@@ -7,6 +7,7 @@ import androidx.core.content.edit
 class Preferences(context: Context) {
 
     companion object {
+        internal const val ACCENT_COLOR = "ru.hiro.manager.ACCENT_COLOR"
         internal const val DISPLAY_THEME = "ru.hiro.manager.DISPLAY_THEME"
         private const val DYNAMIC_COLORS = "ru.hiro.manager.DYNAMIC_COLORS"
     }
@@ -18,6 +19,10 @@ class Preferences(context: Context) {
     var displayTheme: Int
         get() = preferences.getInt(DISPLAY_THEME, -1)
         set(value) = preferences.edit { putInt(DISPLAY_THEME, value) }
+
+    var accentColor: String
+        get() = preferences.getString(ACCENT_COLOR, "default") ?: "default"
+        set(value) = preferences.edit { putString(ACCENT_COLOR, value) }
 
     var dynamicColors: Boolean?
         get() = if (preferences.contains(DYNAMIC_COLORS)) preferences.getBoolean(DYNAMIC_COLORS, true) else null

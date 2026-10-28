@@ -1,0 +1,4 @@
+Appearance palette seed values and the Material Kolor palette approach are adapted
+from Komi Store: https://github.com/komi-store/komi-store
+Licensed under the Apache License, Version 2.0; see komi-store-APACHE-2.0.txt.
+The integration and selection UI have been adapted for this application.
