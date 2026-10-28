@@ -204,9 +204,7 @@ fun NavGraphBuilder.workspaceRoutes(nav: NavController, calls: ViewModel, auth: 
     composable("workspace-employees") { WorkspaceEmployees(nav,auth,session) }
     composable("workspace-team-calls") {
         val repository=remember(auth,session.sessionId){AuthenticatedCallRepository(auth)}
-        Scaffold(topBar={WorkspaceHeader("Звонки команды","Ваш разговор не прерывается",onBack={nav.navigateUp()})}){padding->
-            SharedCallsScreen(repository,padding,initialTab=1,onOpen={nav.navigate("workspace-call/$it")},onDial={nav.navigate("workspace-dialer")},onLocal={nav.navigate("workspace-local-calls")})
-        }
+        SharedCallsScreen(repository,initialTab=1,onOpen={nav.navigate("workspace-call/$it")},onDial={nav.navigate("workspace-dialer")},onLocal={nav.navigate("workspace-local-calls")},onBack={nav.navigateUp()})
     }
     composable("workspace-call/{id}",arguments=listOf(navArgument("id"){type=NavType.StringType})) { entry ->
         val repository=remember(auth,session.sessionId){AuthenticatedCallRepository(auth)}

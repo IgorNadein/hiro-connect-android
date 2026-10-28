@@ -2,6 +2,7 @@ package ru.hiro.manager
 
 import android.media.MediaPlayer
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -12,6 +13,8 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
@@ -25,98 +28,172 @@ import java.io.File
 
 internal fun callError(error:Throwable)=if(error is HiroServerException)error.userMessage else "Не удалось загрузить данные. Проверьте соединение."
 
+internal enum class CallsFilter(val label: String) {
+    ALL("Все"), INCOMING("Входящие"), OUTGOING("Исходящие"),
+    MISSED("Пропущенные"), ACTIVE("Сейчас"), WAITING("В очереди")
+}
+
+internal fun historyMatchesFilter(call: SharedCall, filter: CallsFilter): Boolean = when (filter) {
+    CallsFilter.ALL -> true
+    CallsFilter.INCOMING -> call.direction == "inbound"
+    CallsFilter.OUTGOING -> call.direction == "outbound"
+    CallsFilter.MISSED -> call.direction == "inbound" && call.status in setOf("missed", "busy")
+    CallsFilter.ACTIVE, CallsFilter.WAITING -> false
+}
+
+internal fun liveMatchesFilter(call: LiveTeamCall, filter: CallsFilter): Boolean = when (filter) {
+    CallsFilter.ALL -> true
+    CallsFilter.INCOMING -> call.direction == "inbound"
+    CallsFilter.OUTGOING -> call.direction == "outbound"
+    CallsFilter.MISSED -> false
+    CallsFilter.ACTIVE -> call.state == "active"
+    CallsFilter.WAITING -> call.state == "waiting"
+}
+
 @Composable
-internal fun SharedCallsScreen(repository:SharedCallRepository,padding:PaddingValues=PaddingValues(),initialTab:Int=0,onOpen:(String)->Unit,onDial:()->Unit,onLocal:()->Unit) {
-    var tab by rememberSaveable{mutableIntStateOf(initialTab)}
-    var query by rememberSaveable{mutableStateOf("")}
-    var missed by rememberSaveable{mutableStateOf(false)}
-    var history by remember{mutableStateOf<SharedCallPage?>(null)}
-    var live by remember{mutableStateOf<LiveTeamCalls?>(null)}
-    var error by remember{mutableStateOf("")}
-    var busy by remember{mutableStateOf(false)}
-    var retry by remember{mutableIntStateOf(0)}
-    var generation by remember{mutableIntStateOf(0)}
-    var joining by remember{mutableStateOf<LiveTeamCall?>(null)}
-    var callback by remember{mutableStateOf("")}
-    val scope=rememberCoroutineScope()
-    val lifecycle=LocalLifecycleOwner.current.lifecycle
-    LaunchedEffect(repository,tab,query,missed,retry) {
+private fun CompactCallRow(title: String, subtitle: String, trailing: String, icon: ImageVector, description: String, onClick: (() -> Unit)? = null) {
+    Surface(shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceContainerLowest,
+        modifier = Modifier.fillMaxWidth().then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Icon(icon, contentDescription = description, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text(title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (subtitle.isNotBlank()) Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            if (trailing.isNotBlank()) Text(trailing, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+@Composable
+internal fun SharedCallsScreen(repository: SharedCallRepository, padding: PaddingValues = PaddingValues(), initialTab: Int = 0,
+    onOpen: (String) -> Unit, onDial: () -> Unit, onLocal: () -> Unit,
+    subtitle: String = "", onSettings: (() -> Unit)? = null, onBack: (() -> Unit)? = null) {
+    var filter by rememberSaveable { mutableStateOf(if (initialTab == 1) CallsFilter.ACTIVE else if (initialTab == 2) CallsFilter.WAITING else CallsFilter.ALL) }
+    var filterDialog by remember { mutableStateOf(false) }
+    var searchVisible by rememberSaveable { mutableStateOf(false) }
+    var query by rememberSaveable { mutableStateOf("") }
+    var history by remember { mutableStateOf<SharedCallPage?>(null) }
+    var live by remember { mutableStateOf<LiveTeamCalls?>(null) }
+    var historyError by remember { mutableStateOf("") }
+    var liveError by remember { mutableStateOf("") }
+    var busy by remember { mutableStateOf(false) }
+    var joiningBusy by remember { mutableStateOf(false) }
+    var retry by remember { mutableIntStateOf(0) }
+    var finishedRefresh by remember { mutableIntStateOf(0) }
+    var generation by remember { mutableIntStateOf(0) }
+    var joining by remember { mutableStateOf<LiveTeamCall?>(null) }
+    var callback by remember { mutableStateOf("") }
+    var menu by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    val missed = filter == CallsFilter.MISSED
+    LaunchedEffect(repository, query, missed, retry, finishedRefresh) {
         generation++
-        error="";busy=true
-        if(tab==0) {
-            history=null
-            delay(250)
-            try {history=repository.history(query,missed)}catch(e:CancellationException){throw e}catch(e:Exception){error=callError(e)}finally{busy=false}
-        } else {
-            busy=false
-            lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
-                while(true) {
-                    try {live=repository.live();error=""}catch(e:CancellationException){throw e}catch(e:Exception){error=callError(e);live=null}
-                    delay(3000)
+        historyError = ""; busy = true; history = null
+        delay(250)
+        try { history = repository.history(query, missed) }
+        catch (e: CancellationException) { throw e }
+        catch (e: Exception) { historyError = callError(e) }
+        finally { busy = false }
+    }
+    LaunchedEffect(repository, lifecycle, retry) {
+        lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            var previousIds: Set<String>? = null
+            while (true) {
+                try {
+                    val updated = repository.live()
+                    if (updated.ready) {
+                        val currentIds = updated.items.map { it.id }.toSet()
+                        if (previousIds?.any { it !in currentIds } == true) finishedRefresh++
+                        previousIds = currentIds
+                    }
+                    live = updated; liveError = ""
                 }
+                catch (e: CancellationException) { throw e }
+                catch (e: Exception) { liveError = callError(e); live = null }
+                delay(3000)
             }
         }
     }
-    LazyColumn(Modifier.fillMaxSize().padding(padding),contentPadding=PaddingValues(18.dp),verticalArrangement=Arrangement.spacedBy(14.dp)) {
-        item {
-            WorkspaceCard {
-                Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)){
-                    HiroAvatar("",icon=Icons.Outlined.Headset)
-                    Column(Modifier.weight(1f)){Text("Звонки команды",style=MaterialTheme.typography.titleLarge);Text("Общий журнал сервера",style=MaterialTheme.typography.bodySmall)}
-                    IconButton(onClick={retry++},enabled=!busy){Icon(Icons.Outlined.Refresh,"Обновить звонки")}
+    val liveRows = live?.takeIf { it.ready }?.items.orEmpty().filter { call ->
+        liveMatchesFilter(call, filter) && (query.isBlank() || call.number.contains(query, true) || call.operators.any { it.contains(query, true) })
+    }.sortedBy { if (it.state == "active") 0 else 1 }
+    val liveIds = liveRows.map { it.id }.toSet()
+    val historyRows = history?.items.orEmpty().filter { it.id !in liveIds && historyMatchesFilter(it, filter) }
+    Scaffold(modifier = Modifier.fillMaxSize().padding(padding),
+        containerColor = MaterialTheme.colorScheme.background,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
+        topBar = { WorkspaceHeader("Звонки", subtitle, onBack = onBack, statusInset = onBack != null, actions = {
+            IconButton(onClick = { filterDialog = true }) { Icon(Icons.Outlined.FilterList, if (filter == CallsFilter.ALL) "Фильтр звонков" else "Фильтр: ${filter.label}") }
+            IconButton(onClick = { searchVisible = !searchVisible; if (!searchVisible) query = "" }) { Icon(Icons.Outlined.Search, if (searchVisible) "Закрыть поиск" else "Поиск звонков") }
+            Box {
+                IconButton(onClick = { menu = true }) { Icon(Icons.Outlined.MoreVert, "Меню звонков") }
+                DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                    DropdownMenuItem(text = { Text("Обновить") }, onClick = { menu = false; retry++ })
+                    if (onSettings != null) DropdownMenuItem(text = { Text("Настройки") }, onClick = { menu = false; onSettings() })
+                    DropdownMenuItem(text = { Text("История на этом смартфоне") }, onClick = { menu = false; onLocal() })
                 }
-                Button(onClick=onDial,modifier=Modifier.fillMaxWidth().heightIn(min=48.dp)){Icon(Icons.Outlined.Dialpad,null);Spacer(Modifier.width(8.dp));Text("Набрать номер")}
             }
-        }
-        item { HiroSegments(listOf("Журнал","Сейчас","Очередь"),tab){tab=it;callback=""} }
-        if(error.isNotEmpty())item{WorkspaceInfo(error,true);TextButton(onClick={retry++}){Text("Повторить загрузку")}}
-        if(callback.isNotEmpty())item{WorkspaceInfo(callback)}
-        if(busy)item{LinearProgressIndicator(Modifier.fillMaxWidth())}
-        if(tab==0) {
-            item{WorkspaceSearch(query,{query=it},"Имя, номер или менеджер")}
-            item{Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){FilterChip(!missed,{missed=false},label={Text("Все")});FilterChip(missed,{missed=true},label={Text("Пропущенные")})}}
-            history?.let{page->
-                journalProblemText(page.problem)?.let { problem -> item { WorkspaceInfo(problem,true) } }
-                if(page.items.isEmpty() && journalProblemText(page.problem)==null)item{HiroEmpty(Icons.Outlined.Phone,"Звонков не найдено",if(query.isNotBlank()||missed)"Измените поиск или фильтр." else "Здесь появятся звонки, сохранённые сервером. История смартфона доступна отдельно.")}
-                items(page.items,key={it.id}){call->
-                    WorkspaceGroup {
-                        HiroPersonRow(callTitle(call),call.number,callStatus(call)+" · "+if(call.recording)"Есть запись" else "Без записи",callTime(call.startedAt)){onOpen(call.id)}
-                        if(call.operators.isNotEmpty())Text(call.operators.joinToString(" · "),Modifier.padding(start=16.dp,end=16.dp,bottom=12.dp),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+        }) },
+        floatingActionButton = { FloatingActionButton(onClick = onDial) { Icon(Icons.Outlined.Dialpad, "Набрать номер") } }
+    ) { inner ->
+        LazyColumn(Modifier.fillMaxSize().padding(inner), contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 12.dp, bottom = 96.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (searchVisible) item { WorkspaceSearch(query, { query = it }, "Имя, номер или менеджер") }
+            if (historyError.isNotBlank()) item { WorkspaceInfo("История: $historyError", true); TextButton(onClick = { retry++ }) { Text("Повторить загрузку") } }
+            if (liveError.isNotBlank()) item { WorkspaceInfo("Текущие звонки: $liveError", true) }
+            live?.takeIf { !it.ready }?.let { item { WorkspaceInfo(liveUnavailableText(it.problem), true) } }
+            if (callback.isNotBlank()) item { WorkspaceInfo(callback) }
+            if (busy || joiningBusy) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
+            items(liveRows, key = { "live-" + it.id }) { call ->
+                val active = call.state == "active"
+                CompactCallRow(call.number.ifBlank { "Номер не передан" }, call.operators.joinToString(" · "), callDuration(call.duration),
+                    if (active) Icons.Outlined.PhoneInTalk else Icons.Outlined.Schedule, if (active) "Идёт разговор" else "В очереди",
+                    if (active && live?.capabilities?.join == true) ({ joining = call }) else null)
+            }
+            items(historyRows, key = { "history-" + it.id }) { call ->
+                val icon = when { call.status in setOf("missed", "busy") && call.direction == "inbound" -> Icons.Outlined.CallMissed
+                    call.direction == "outbound" -> Icons.Outlined.CallMade
+                    call.direction == "inbound" -> Icons.Outlined.CallReceived
+                    else -> Icons.Outlined.Phone }
+                CompactCallRow(callTitle(call), call.operators.joinToString(" · "), callTime(call.startedAt), icon, callStatus(call)) { onOpen(call.id) }
+            }
+            val page = history
+            if (page != null && filter !in setOf(CallsFilter.ACTIVE, CallsFilter.WAITING)) {
+                journalProblemText(page.problem)?.let { problem -> item { WorkspaceInfo(problem, true) } }
+                if (page.nextCursor.isNotEmpty()) item { OutlinedButton(enabled = !busy, onClick = {
+                    val requestedGeneration = generation
+                    scope.launch {
+                        busy = true; historyError = ""
+                        try {
+                            val next = repository.history(query, missed, page.nextCursor)
+                            if (generation == requestedGeneration) history = next.copy(items = (page.items + next.items).distinctBy { it.id })
+                        } catch (e: CancellationException) { throw e }
+                        catch (e: Exception) { if (generation == requestedGeneration) historyError = callError(e) }
+                        finally { if (generation == requestedGeneration) busy = false }
                     }
-                }
-                if(page.nextCursor.isNotEmpty())item{OutlinedButton(enabled=!busy,onClick={
-                    val requestedGeneration=generation
-                    scope.launch{busy=true;error="";try{
-                        val next=repository.history(query,missed,page.nextCursor)
-                        if(generation==requestedGeneration)history=next.copy(items=(page.items+next.items).distinctBy{it.id})
-                    }catch(e:CancellationException){throw e}catch(e:Exception){if(generation==requestedGeneration)error=callError(e)}finally{if(generation==requestedGeneration)busy=false}}
-                },modifier=Modifier.fillMaxWidth()){Text("Показать ещё")}}
+                }, modifier = Modifier.fillMaxWidth()) { Text("Показать ещё") } }
             }
-            item{TextButton(onClick=onLocal,modifier=Modifier.fillMaxWidth()){Text("История на этом смартфоне")}}
-        } else {
-            val state=live
-            if(state!=null) {
-                if(!state.ready)item{WorkspaceInfo(liveUnavailableText(state.problem),true)}
-                else {
-                    val rows=state.items.filter{if(tab==2)it.state=="waiting" else it.state=="active"}
-                    item{Text(if(tab==2)"Ожидают ответа" else "Разговоры команды",style=MaterialTheme.typography.titleLarge)}
-                    if(rows.isEmpty())item{HiroEmpty(if(tab==2)Icons.Outlined.Schedule else Icons.Outlined.Headset,if(tab==2)"Нет ожидающих звонков" else "Сейчас нет разговоров","Состояние АТС обновляется автоматически.")}
-                    items(rows,key={it.id}){call->
-                        WorkspaceCard{
-                            Text(call.number.ifBlank{"Номер не передан"},style=MaterialTheme.typography.titleLarge)
-                            Text(if(call.operators.isEmpty())"Оператор не определён" else call.operators.joinToString(" · "))
-                            Text(callDuration(call.duration)+call.gatewayType.takeIf{it.isNotBlank()}?.let{" · "+callGatewayLabel(it)}.orEmpty(),style=MaterialTheme.typography.bodySmall)
-                            if(tab==1&&state.capabilities.join)OutlinedButton(onClick={joining=call},enabled=!busy,modifier=Modifier.fillMaxWidth()){Icon(Icons.Outlined.GroupAdd,null);Spacer(Modifier.width(8.dp));Text("Участвовать в разговоре")}
-                        }
-                    }
-                }
-            }
+            if (!busy && historyError.isBlank() && liveError.isBlank() && history != null && live != null && liveRows.isEmpty() && historyRows.isEmpty() && history?.nextCursor.isNullOrEmpty())
+                item { HiroEmpty(Icons.Outlined.Phone, "Звонков не найдено", "Измените поиск или фильтр.") }
         }
     }
-    joining?.let{call->AlertDialog(onDismissRequest={joining=null},title={Text("Подключиться к разговору?")},
-        text={Text("АТС позвонит в ваше рабочее приложение. Ответьте на входящий вызов: вас будут слышать клиент и другие участники. Разговор должен ещё продолжаться.")},
-        confirmButton={TextButton(onClick={joining=null;scope.launch{busy=true;error="";try{repository.join(call.id);callback="Запрос отправлен. Ответьте на входящий вызов АТС для участия в разговоре."}catch(e:CancellationException){throw e}catch(e:Exception){error=callError(e)}finally{busy=false}}}){Text("Запросить подключение")}},
-        dismissButton={TextButton(onClick={joining=null}){Text("Отмена")}})}
+    if (filterDialog) AlertDialog(onDismissRequest = { filterDialog = false }, title = { Text("Фильтр звонков") },
+        text = { Column { CallsFilter.entries.forEach { option ->
+            Row(Modifier.fillMaxWidth().clickable { filter = option; filterDialog = false }.padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+                RadioButton(selected = filter == option, onClick = { filter = option; filterDialog = false })
+                Spacer(Modifier.width(8.dp)); Text(option.label)
+            }
+        } } }, confirmButton = { TextButton(onClick = { filterDialog = false }) { Text("Закрыть") } })
+    joining?.let { call -> AlertDialog(onDismissRequest = { joining = null }, title = { Text("Подключиться к разговору?") },
+        text = { Text("АТС позвонит в ваше рабочее приложение. Ответьте на входящий вызов: вас будут слышать клиент и другие участники. Разговор должен ещё продолжаться.") },
+        confirmButton = { TextButton(onClick = { joining = null; scope.launch { joiningBusy = true; callback = ""; try {
+            repository.join(call.id); callback = "Запрос отправлен. Ответьте на входящий вызов АТС для участия в разговоре."
+        } catch (e: CancellationException) { throw e } catch (e: Exception) { callback = callError(e) } finally { joiningBusy = false } } }) { Text("Запросить подключение") } },
+        dismissButton = { TextButton(onClick = { joining = null }) { Text("Отмена") } }) }
 }
 
 @Composable
