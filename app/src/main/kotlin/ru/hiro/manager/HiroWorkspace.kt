@@ -337,7 +337,7 @@ private fun WorkspaceHelp(nav: NavController) {
     val context=LocalContext.current
     val agents by BaresipService.uas
     WorkspacePage("Помощь и проверка связи","Состояние этого смартфона",nav) {
-        item { WorkspaceCard { Text("Зарегистрированных SIP-подключений: ${agents.count { it.status == BaresipService.circleGreen.getValue(BaresipService.colorblind) }}");Text("Микрофон: "+if(ContextCompat.checkSelfPermission(context,Manifest.permission.RECORD_AUDIO)==PackageManager.PERMISSION_GRANTED) "разрешён" else "не разрешён");Text("Android ${Build.VERSION.RELEASE} · HI-RO ${BuildConfig.VERSION_NAME}") } }
+        item { WorkspaceCard { Text("Зарегистрированных SIP-подключений: ${agents.count { it.status == BaresipService.circleGreen.getValue(BaresipService.colorblind) }}");Text("Микрофон: "+if(ContextCompat.checkSelfPermission(context,Manifest.permission.RECORD_AUDIO)==PackageManager.PERMISSION_GRANTED) "разрешён" else "не разрешён");Text("Android ${Build.VERSION.RELEASE} · HiRo ${BuildConfig.VERSION_NAME}") } }
         item { WorkspaceRow("Проверка голосового соединения","Набрать 600 вручную — локальное эхо",Icons.Default.Phone){nav.navigate("workspace-dialer?number=600")} }
         item { WorkspaceRow("Гарнитура и звук","Громкость, микрофон и аудиомодули",Icons.Default.Headset){nav.navigate("audio")} }
         item { WorkspaceRow("Разрешения Android","Если микрофон или уведомления недоступны",Icons.Default.Security){nav.navigate("workspace-notifications")} }

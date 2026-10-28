@@ -89,7 +89,7 @@ internal object ConnectGitHubUpdates {
             .singleOrNull {
                 it.optString("name").startsWith("HI-RO-Connect-") &&
                     it.optString("name").endsWith(".apk")
-            } ?: error("Release must contain exactly one HI-RO Connect APK")
+            } ?: error("Release must contain exactly one HiRo Connect APK")
         val apkUrl = apk.getString("browser_download_url")
         require(apkUrl.startsWith("${ConnectProjectLinks.repository}/releases/download/")) {
             "Invalid APK address"

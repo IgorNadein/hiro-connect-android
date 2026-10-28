@@ -80,7 +80,7 @@ fun AboutScreen(onBack: () -> Unit) {
         modifier = Modifier.fillMaxSize().imePadding(),
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
-            WorkspaceHeader("О приложении", "HI-RO Connect · $version", onBack = onBack)
+            WorkspaceHeader("О приложении", "HiRo Connect · $version", onBack = onBack)
         }
     ) { contentPadding ->
         Column(

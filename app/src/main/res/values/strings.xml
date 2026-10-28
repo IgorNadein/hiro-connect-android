@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools">
     <string name="clients_and_routes">Clients and voice routing</string>
-    <string name="app_name" translatable="false">HI-RO Connect</string>
-    <string name="app_name_plus" translatable="false">HI-RO Connect</string>
+    <string name="app_name" translatable="false">HiRo Connect</string>
+    <string name="app_name_plus" translatable="false">HiRo Connect</string>
     <string name="brand_tagline">Operator workspace</string>
     <string name="server_logout">Sign out from server</string>
     <string name="gateway_ready">Ready for calls</string>
@@ -14,7 +14,7 @@
     <string name="background_channel_name">Background calling</string>
     <string name="background_channel_description">Keeps incoming calls available while the app is closed</string>
     <string name="background_service_title">Calls are active in the background</string>
-    <string name="background_service_description">HI-RO Connect is ready for incoming calls</string>
+    <string name="background_service_description">HiRo Connect is ready for incoming calls</string>
     <string name="health_channel_name">Connection problems</string>
     <string name="health_channel_description">Alerts when a server or phone gateway becomes unavailable</string>
     <string name="health_attention_title">Connection needs attention</string>
@@ -32,7 +32,7 @@
     <string name="messages_short">Messages</string>
     <string name="calls_short">Calls</string>
     <string name="dialpad_short">Keypad</string>
-    <string name="hiro_about_title">About HI-RO Connect</string>
+    <string name="hiro_about_title">About HiRo Connect</string>
     <string name="updates_title">Updates</string>
     <string name="updates_checking">Checking GitHub…</string>
     <string name="updates_available">Version %1$s is available</string>
@@ -40,7 +40,7 @@
     <string name="updates_from_github">Updates from GitHub Releases</string>
     <string name="updates_current">Current version: %1$s</string>
     <string name="updates_download_progress">Downloading: %1$d%%</string>
-    <string name="updates_allow_install">Allow installs from HI-RO Connect, then return and tap Install again.</string>
+    <string name="updates_allow_install">Allow installs from HiRo Connect, then return and tap Install again.</string>
     <string name="updates_install_failed">Unable to open the Android installer</string>
     <string name="updates_install">Install</string>
     <string name="updates_download">Download update</string>
@@ -48,8 +48,8 @@
     <string name="updates_whats_new">What’s new</string>
     <string name="updates_browser_failed">Unable to open the browser</string>
     <string name="hiro_about_text"><![CDATA[
-        <h1>HI-RO Connect</h1>
-        <p>Operator app for HI-RO Phone Gateway.</p>
+        <h1>HiRo Connect</h1>
+        <p>Operator app for HiRo Phone Gateway.</p>
         <p>Version %1$s</p>
         <h2>Capabilities</h2>
         <ul>
@@ -58,7 +58,7 @@
             <li>Contacts, call history, and messages</li>
         </ul>
         <h2>Open source</h2>
-        <p>HI-RO Connect is based on the BSD-licensed
+        <p>HiRo Connect is based on the BSD-licensed
         <a href="https://github.com/juha-h/baresip-studio">baresip-studio</a>
         project and the <a href="https://github.com/baresip/baresip">baresip</a>
         engine. Original copyright and third-party notices are retained.</p>
@@ -405,20 +405,20 @@
     <!-- Settings Activity -->
     <string name="configuration">Settings</string>
     <string name="start_automatically">Start Automatically</string>
-    <string name="start_automatically_help">If checked, HI-RO Connect starts automatically after device boots
+    <string name="start_automatically_help">If checked, HiRo Connect starts automatically after device boots
         or after the app is updated. Start is delayed until device is unlocked.
     </string>
     <string name="appear_on_top_permission">Automatic start needs Appear on Top permission.</string>
     <string name="battery_optimizations">Battery Optimizations</string>
     <string name="battery_optimizations_help">Disable battery optimizations to reduce the likelihood
-        that Android restricts HI-RO Connect network access or incoming calls.</string>
+        that Android restricts HiRo Connect network access or incoming calls.</string>
     <string name="default_phone_app">Default Phone App</string>
     <string name="dialer_role_not_available">Default phone app role is not available</string>
-    <string name="default_phone_app_help">If checked, HI-RO Connect is the default phone app.</string>
+    <string name="default_phone_app_help">If checked, HiRo Connect is the default phone app.</string>
     <string name="create_mobile_account">Create Mobile Account</string>
     <string name="create_mobile_account_help">If checked, virtual Mobile account is created for mobile calling.</string>
     <string name="default_messaging_app">Default Messaging App</string>
-    <string name="default_messaging_app_help">If checked, HI-RO Connect is the default messaging app for SMS/MMS.</string>
+    <string name="default_messaging_app_help">If checked, HiRo Connect is the default messaging app for SMS/MMS.</string>
     <string name="messaging_role_not_available">Default messaging app role is not available</string>
     <string name="enable_default_messaging">Please enable Default Messaging App in Settings</string>
     <string name="listen_address">Listen Address</string>
@@ -537,7 +537,7 @@
     <string name="reset">Reset</string>
     <string name="read_cert_error">Failed to read file \'cert.pem\'.</string>
     <string name="read_ca_certs_error">Failed to read file \'ca_certs.crt\'.</string>
-    <string name="config_restart">You need to restart HI-RO Connect in order to activate the new
+    <string name="config_restart">You need to restart HiRo Connect in order to activate the new
         settings. Restart now?
     </string>
     <string name="consent_request">Consent Request</string>
@@ -611,7 +611,7 @@
     <string name="bullet_item" translatable="false">\u2022 %1$s</string>
     <string name="invalid_sip_or_tel_uri">Invalid SIP or tel URI \'%1$s\'</string>
     <string name="permission_denied">Permission Denied</string>
-    <string name="baresip" translatable="false">HI-RO Connect</string>
+    <string name="baresip" translatable="false">HiRo Connect</string>
     <string name="android" translatable="false">Android</string>
     <!-- Main Activity -->
     <string name="backup">Backup</string>
@@ -664,7 +664,7 @@
     <string name="no_messages">You have no messages</string>
     <string name="listen">Listen</string>
     <string name="call_already_active">You already have an active call.</string>
-    <string name="start_failed">HI-RO Connect failed to start. This may be due to an invalid Settings value.
+    <string name="start_failed">HiRo Connect failed to start. This may be due to an invalid Settings value.
         Check Listen Address, TLS Certificate File, and TLS CA File. Then restart the app.
     </string>
     <string name="registering_failed">Registering of \`%1$s\` failed.</string>
@@ -690,7 +690,7 @@
     <string name="backup_failed">Failed to back up application data to file
         \'%1$s\'. Check Apps → baresip → Permissions → Storage.</string>
     <string name="restart_request">Restart Request</string>
-    <string name="restored">Application data restored. HI-RO Connect needs to be restarted.
+    <string name="restored">Application data restored. HiRo Connect needs to be restarted.
         Restart now?
     </string>
     <string name="restore_failed">Failed to restore application data. Check that you gave correct
@@ -705,7 +705,7 @@
         permission.</string>
     <string name="airplane_mode">Airplane mode is ON. Turn it OFF to use mobile account.</string>
     <string name="mobile_service_not_available">Mobile service is not available.</string>
-    <string name="no_calls">HI-RO Connect needs \"Microphone\" permission for voice calls.</string>
+    <string name="no_calls">HiRo Connect needs \"Microphone\" permission for voice calls.</string>
     <string name="no_video_calls">Grant \"Camera\" permission to make or answer video calls.</string>
     <string name="no_backup">You are not able create backup without \"Storage\" permission.</string>
     <string name="no_restore">You are not able restore backup without \"Storage\" permission.</string>
@@ -719,7 +719,7 @@
     <string name="ussd_service_unavailable">USSD service unavailable</string>
     <string name="ussd_unknown_error">USSD unknown error</string>
     <string name="permissions_rationale">Permissions rationale</string>
-    <string name="audio_permissions">HI-RO Connect needs \"Microphone\" permission for voice calls,
+    <string name="audio_permissions">HiRo Connect needs \"Microphone\" permission for voice calls,
         \"Nearby devices\" permission for Bluetooth microphone/speaker detection,
         \"Notifications\" permission for posting notifications, and in Android 9
         \"Storage\" permission for Backup/Restore operations.</string>

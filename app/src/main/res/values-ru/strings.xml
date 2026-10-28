@@ -12,7 +12,7 @@
     <string name="background_channel_name">Фоновая телефония</string>
     <string name="background_channel_description">Обеспечивает приём звонков, когда приложение закрыто</string>
     <string name="background_service_title">Звонки работают в фоне</string>
-    <string name="background_service_description">HI-RO Connect готов принимать входящие</string>
+    <string name="background_service_description">HiRo Connect готов принимать входящие</string>
     <string name="health_channel_name">Проблемы со связью</string>
     <string name="health_channel_description">Предупреждения о недоступности сервера или телефона-шлюза</string>
     <string name="health_attention_title">Требуется внимание</string>
@@ -30,7 +30,7 @@
     <string name="messages_short">Сообщения</string>
     <string name="calls_short">Вызовы</string>
     <string name="dialpad_short">Набор</string>
-    <string name="hiro_about_title">О HI-RO Connect</string>
+    <string name="hiro_about_title">О HiRo Connect</string>
     <string name="updates_title">Обновления</string>
     <string name="updates_checking">Проверяем GitHub…</string>
     <string name="updates_available">Доступна версия %1$s</string>
@@ -38,7 +38,7 @@
     <string name="updates_from_github">Обновления из GitHub Releases</string>
     <string name="updates_current">Сейчас установлена: %1$s</string>
     <string name="updates_download_progress">Загрузка: %1$d%%</string>
-    <string name="updates_allow_install">Разрешите установку из HI-RO Connect, затем вернитесь и снова нажмите «Установить».</string>
+    <string name="updates_allow_install">Разрешите установку из HiRo Connect, затем вернитесь и снова нажмите «Установить».</string>
     <string name="updates_install_failed">Не удалось открыть установщик Android</string>
     <string name="updates_install">Установить</string>
     <string name="updates_download">Скачать обновление</string>
@@ -46,8 +46,8 @@
     <string name="updates_whats_new">Что нового</string>
     <string name="updates_browser_failed">Не удалось открыть браузер</string>
     <string name="hiro_about_text"><![CDATA[
-        <h1>HI-RO Connect</h1>
-        <p>Рабочее место оператора для HI-RO Phone Gateway.</p>
+        <h1>HiRo Connect</h1>
+        <p>Рабочее место оператора для HiRo Phone Gateway.</p>
         <p>Версия %1$s</p>
         <h2>Возможности</h2>
         <ul>
@@ -56,7 +56,7 @@
             <li>Контакты, история вызовов и сообщения</li>
         </ul>
         <h2>Открытый код</h2>
-        <p>HI-RO Connect основан на BSD-проекте
+        <p>HiRo Connect основан на BSD-проекте
         <a href="https://github.com/juha-h/baresip-studio">baresip-studio</a>
         и движке <a href="https://github.com/baresip/baresip">baresip</a>.
         Исходные авторские и лицензионные уведомления сохранены.</p>
@@ -94,7 +94,7 @@
     <string name="debug">Отладка</string>
     <string name="decrypt_password">Расшифровать пароль</string>
     <string name="default_account">Аккаунт по умолчанию</string>
-    <string name="default_account_help">Если отмечено, эта учетная запись будет выбрана при запуске HI-RO Connect.</string>
+    <string name="default_account_help">Если отмечено, эта учетная запись будет выбрана при запуске HiRo Connect.</string>
     <string name="default_call_volume">Громкость вызова по умолчанию</string>
     <string name="default_call_volume_help">Если установлено громкость вызова 1-10.</string>
     <string name="delete">Удалить</string>
@@ -125,7 +125,7 @@
     <string name="short_chat_question">Хотите удалить чат с \'%1$s\'?</string>
     <string name="short_message_question">Хотите удалить это сообщение?</string>
     <string name="start_automatically">Запускать автоматически</string>
-    <string name="start_automatically_help">Если отмечено, HI-RO Connect запускается автоматически после загрузки устройства или обновления приложения. Запуск задерживается до разблокировки устройства.</string>
+    <string name="start_automatically_help">Если отмечено, HiRo Connect запускается автоматически после загрузки устройства или обновления приложения. Запуск задерживается до разблокировки устройства.</string>
     <string name="status">Статус</string>
     <string name="voicemail_messages">Сообщения голосовой почты</string>
     <string name="voicemail_uri">URI голововой почты</string>
@@ -163,7 +163,7 @@
     <string name="restart">Перезагрузка</string>
     <string name="restore">Восстановление</string>
     <string name="verify">Запрос на проверку</string>
-    <string name="no_calls">HI-RO Connect требуется доступ к микрофону для голосовых вызовов.</string>
+    <string name="no_calls">HiRo Connect требуется доступ к микрофону для голосовых вызовов.</string>
     <string name="accept">Принять</string>
     <string name="account">Профиль</string>
     <string name="account_allocation_failure">Не могу создать новый аккаунт.</string>
@@ -178,7 +178,7 @@
     <string name="outbound_proxies">Исходящие прокси</string>
     <string name="outgoing_call_to_dots">Вызов на …</string>
     <string name="registering_failed">Регистрация `%1$s` не удалась.</string>
-    <string name="restored">Данные приложения восстановлены. Нужно перезапустить HI-RO Connect. Перезапустить\?</string>
+    <string name="restored">Данные приложения восстановлены. Нужно перезапустить HiRo Connect. Перезапустить\?</string>
     <string name="today">Сегодня</string>
     <string name="transfer_request_query">Принять перевод этого вызова на \'%1$s\'\?</string>
     <string name="transfer_request">Запрос перевода на</string>
@@ -194,7 +194,7 @@
     <string name="peer_not_verified">Этот вызов БЕЗОПАСНЫЙ, но собеседник НЕ проверен!</string>
     <string name="transfer">Передача</string>
     <string name="verify_sas">Вы хотите проверить SAS &lt;%1$s&gt;\?</string>
-    <string name="start_failed">HI-RO Connect не запустился. Проверьте адрес прослушивания и параметры TLS, затем перезапустите приложение.</string>
+    <string name="start_failed">HiRo Connect не запустился. Проверьте адрес прослушивания и параметры TLS, затем перезапустите приложение.</string>
     <string name="listen">Слушать</string>
     <string name="call_info_not_available">Нет информации</string>
     <string name="dtmf">DTMF (тональный)</string>
@@ -270,7 +270,7 @@
     <string name="dark_theme_help">Принудительное отображение темной темы</string>
     <string name="reset_config_alert">Вы уверены, что хотите сбросить настройки до значений по умолчанию\?</string>
     <string name="sip_trace_help">Если флажок установлен и если установлен флажок Отладка, сообщения Logcat также включают трассировку запросов и ответов SIP. Автоматически снимается при запуске baresip.</string>
-    <string name="battery_optimizations_help">Отключите оптимизацию батареи, чтобы Android не ограничивал сетевую работу HI-RO Connect и приём входящих звонков.</string>
+    <string name="battery_optimizations_help">Отключите оптимизацию батареи, чтобы Android не ограничивал сетевую работу HiRo Connect и приём входящих звонков.</string>
     <string name="audio_settings">Аудионастройки</string>
     <string name="account_nickname_help">Псевдоним (если есть), используемый для идентификации этой учетной записи в baresip app.</string>
     <string name="invalid_account_nickname">Неверный никнейм учетной записи \'%1$s\'</string>
@@ -299,8 +299,8 @@
     <string name="average_rate">Средняя скорость: %1$s (кбит/с)</string>
     <string name="anonymous">Анонимно</string>
     <string name="unknown">Неизвестно</string>
-    <string name="audio_permissions">HI-RO Connect нужны разрешения \"Микрофон\" для звонков, \"Близлежащие устройства\" для Bluetooth-аудио, \"Уведомления\" для входящих вызовов, а в Android 9 — \"Хранилище\" для резервных копий.</string>
-    <string name="contacts_consent">Контакты Android могут использоваться для подстановки имён и номеров в звонках и сообщениях. HI-RO Connect не отправляет адресную книгу сторонним сервисам.</string>
+    <string name="audio_permissions">HiRo Connect нужны разрешения \"Микрофон\" для звонков, \"Близлежащие устройства\" для Bluetooth-аудио, \"Уведомления\" для входящих вызовов, а в Android 9 — \"Хранилище\" для резервных копий.</string>
+    <string name="contacts_consent">Контакты Android могут использоваться для подстановки имён и номеров в звонках и сообщениях. HiRo Connect не отправляет адресную книгу сторонним сервисам.</string>
     <string name="country_code_help">Код страны в формате E.164 для данной учётной записи. Если пользовательская часть URI собеседника в вызове или сообщении содержит телефонный номер, не начинающийся со знака \'+\', и контакт не найден, номер дополняется префиксом этого кода страны и поиск контакта повторяется. Если номер начинается с единственной цифры \'0\', она удаляется перед добавлением префикса.</string>
     <string name="address_family">Семейство адресов</string>
     <string name="avatar_image">Изображение профиля</string>
@@ -336,7 +336,7 @@
     <string name="redirect_request">Запрос переадресации</string>
     <string name="tone_country">Страна тонов</string>
     <string name="rel_100_help">При отметке показывается поддержка надёжных предварительных ответов (RFC 3262).</string>
-    <string name="default_phone_app_help">Если отмечено, HI-RO Connect является приложением телефона по умолчанию.</string>
+    <string name="default_phone_app_help">Если отмечено, HiRo Connect является приложением телефона по умолчанию.</string>
     <string name="tone_country_help">Страна для определения тонов вызова, ожидания и занятости</string>
     <string name="rel_100">Надёжные предварительные ответы</string>
     <string name="appear_on_top_permission">Для автоматического запуска требуется разрешение отображения поверх других приложений.</string>
@@ -417,7 +417,7 @@
     <string name="blocked_contact_question">Добавить собеседника \'%1$s\' в контакты?</string>
     <string name="show_call">Показать вызов</string>
     <string name="default_messaging_app">Приложение для сообщений по умолчанию</string>
-    <string name="default_messaging_app_help">Если отмечено, HI-RO Connect является приложением для SMS/MMS по умолчанию.</string>
+    <string name="default_messaging_app_help">Если отмечено, HiRo Connect является приложением для SMS/MMS по умолчанию.</string>
     <string name="messaging_role_not_available">Роль приложения для сообщений по умолчанию недоступна</string>
     <string name="enable_default_messaging">Включите приложение для сообщений по умолчанию в Настройках</string>
     <string name="unique_contact_uri">Уникальный Contact URI</string>

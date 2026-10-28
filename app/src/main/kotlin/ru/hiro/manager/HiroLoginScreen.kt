@@ -86,7 +86,7 @@ fun HiroLoginScreen(
     ) {
         Column(Modifier.widthIn(max=460.dp).fillMaxWidth().verticalScroll(rememberScrollState()).padding(24.dp),verticalArrangement=Arrangement.spacedBy(22.dp)) {
             Column(verticalArrangement=Arrangement.spacedBy(9.dp)) {
-                Text("HI-RO",color=MaterialTheme.colorScheme.primary,fontSize=38.sp,fontWeight=FontWeight.Bold,letterSpacing=(-1.5).sp)
+                Text("HiRo",color=MaterialTheme.colorScheme.primary,fontSize=38.sp,fontWeight=FontWeight.Bold,letterSpacing=(-1.5).sp)
                 Text("Ваше рабочее\nпространство связи",style=MaterialTheme.typography.headlineSmall)
                 Text("Звонки, сообщения и клиенты — в одном месте.",style=MaterialTheme.typography.bodyMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
             }
