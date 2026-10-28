@@ -191,11 +191,10 @@ class ConnectionService : ConnectionService() {
             startService(answerIntent)
             val intent = Intent(this@ConnectionService, MainActivity::class.java)
             intent.flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK
-            intent.putExtra("action", "call answer")
+            intent.putExtra("action", "call show")
             intent.putExtra("callp", callp)
             startActivity(intent)
             BaresipService.instance?.updateStatusNotification()
-            setActive()
         }
 
         override fun onReject() {

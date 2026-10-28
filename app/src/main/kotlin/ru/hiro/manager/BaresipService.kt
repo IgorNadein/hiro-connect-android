@@ -694,6 +694,21 @@ class BaresipService: Service() {
             "Call Answer" -> {
                 val callp = intent!!.getLongExtra("callp", 0L)
                 val call = Call.ofCallp(callp)
+                if (call == null || call.status.value != "incoming" || call.terminated.value) return START_STICKY
+                val active = Call.calls().filter {
+                    it.callp != callp && !it.terminated.value && !it.onhold && !it.held &&
+                        it.status.value in setOf("connected", "answered")
+                }
+                val held = mutableListOf<Call>()
+                for (other in active) {
+                    if (!other.hold()) {
+                        held.forEach { it.resume() }
+                        toast("Не удалось удержать текущий разговор")
+                        return START_STICKY
+                    }
+                    held.add(other)
+                }
+                nm.cancel(incomingCallTag(callp), CALL_NOTIFICATION_ID)
                 stopRinging()
                 stopMediaPlayer()
                 setCallVolume()
@@ -705,7 +720,7 @@ class BaresipService: Service() {
             "Call Reject" -> {
                 val callp = intent!!.getLongExtra("callp", 0L)
                 val call = Call.ofCallp(callp)
-                nm.cancel(CALL_NOTIFICATION_ID)
+                nm.cancel(incomingCallTag(callp), CALL_NOTIFICATION_ID)
                 stopRinging()
                 stopMediaPlayer()
                 if (call == null)
@@ -1337,6 +1352,7 @@ class BaresipService: Service() {
                     }
 
                     "call answered" -> {
+                        nm.cancel(incomingCallTag(callp), CALL_NOTIFICATION_ID)
                         stopMediaPlayer()
                         ConnectionService.connections[callp]?.setActive()
                         ensureCommunicationMode()
@@ -1506,7 +1522,7 @@ class BaresipService: Service() {
 
                     "call closed" -> {
                         Log.d(TAG, "AoR $aor call $callp is closed prm: ${ev[1]}")
-                        nm.cancel(CALL_NOTIFICATION_ID)
+                        nm.cancel(incomingCallTag(callp), CALL_NOTIFICATION_ID)
                         val connection = ConnectionService.connections[callp]
                         if (connection != null) {
                             val cause = when {
@@ -2963,6 +2979,8 @@ class BaresipService: Service() {
         }
     }
 
+    private fun incomingCallTag(callp: Long) = "incoming-call-$callp"
+
     @SuppressLint("FullScreenIntentPolicy")
     fun handleIncomingCall(call: Call) {
         val ua = call.ua
@@ -2972,11 +2990,12 @@ class BaresipService: Service() {
         val callerNumber = Utils.uriUserPart(peerUri)
         if (call !is Call.ExternalCall && shouldStartRinging(callerNumber)) startRinging()
 
-        if (!Utils.isVisible()) {
+        run {
             val piFlags = PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
             val intent = Intent(this, MainActivity::class.java)
                 .putExtra("action", "call show")
                 .putExtra("callp", callp)
+                .setData(Uri.parse("hiro-call://incoming/$callp/show"))
             intent.flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP or
                     Intent.FLAG_ACTIVITY_NEW_TASK
             val pi = PendingIntent.getActivity(
@@ -3005,11 +3024,12 @@ class BaresipService: Service() {
                 .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
                 .setPriority(NotificationCompat.PRIORITY_MAX)
                 .addPerson(caller)
-                .setFullScreenIntent(pi, true)
+            if (!Utils.isVisible()) nb.setFullScreenIntent(pi, true)
 
             val answerIntent = Intent(this, MainActivity::class.java)
                 .putExtra("action", "call answer")
                 .putExtra("callp", callp)
+                .setData(Uri.parse("hiro-call://incoming/$callp/answer"))
             val api = PendingIntent.getActivity(
                 this,
                 ANSWER_REQ_CODE,
@@ -3020,6 +3040,7 @@ class BaresipService: Service() {
             val rejectIntent = Intent(this, BaresipService::class.java)
             rejectIntent.action = "Call Reject"
             rejectIntent.putExtra("callp", callp)
+            rejectIntent.data = Uri.parse("hiro-call://incoming/$callp/reject")
             val rpi = PendingIntent.getService(
                 this,
                 REJECT_REQ_CODE,
@@ -3032,7 +3053,7 @@ class BaresipService: Service() {
                 rpi,
                 api
             ))
-            nm.notify(CALL_NOTIFICATION_ID, nb.build())
+            nm.notify(incomingCallTag(callp), CALL_NOTIFICATION_ID, nb.build())
         }
 
         postServiceEvent(ServiceEvent(
