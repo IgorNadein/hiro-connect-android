@@ -3,6 +3,7 @@ package ru.hiro.manager
 import android.media.MediaPlayer
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -140,7 +141,7 @@ internal fun SharedCallsScreen(repository: SharedCallRepository, padding: Paddin
     Scaffold(modifier = Modifier.fillMaxSize().padding(padding),
         containerColor = MaterialTheme.colorScheme.background,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        topBar = { Column {
+        topBar = { Column(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.background)) {
             WorkspaceHeader("Звонки", subtitle, onBack = onBack, statusInset = onBack != null, actions = {
             IconButton(onClick = { filterDialog = true }) { Icon(Icons.Outlined.FilterList, if (filter == CallsFilter.ALL) "Фильтр звонков" else "Фильтр: ${filter.label}") }
             IconButton(onClick = { searchVisible = !searchVisible; if (!searchVisible) query = "" }) { Icon(Icons.Outlined.Search, if (searchVisible) "Закрыть поиск" else "Поиск звонков") }
