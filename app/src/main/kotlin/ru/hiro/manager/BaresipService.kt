@@ -997,13 +997,8 @@ class BaresipService: Service() {
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
-        val currentNightMode = newConfig.uiMode and Configuration.UI_MODE_NIGHT_MASK
-        when (currentNightMode) {
-            Configuration.UI_MODE_NIGHT_NO ->
-                darkTheme.value = Preferences(this).displayTheme == AppCompatDelegate.MODE_NIGHT_YES
-            Configuration.UI_MODE_NIGHT_YES ->
-                darkTheme.value = true
-        }
+        val systemDark = newConfig.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
+        darkTheme.value = resolveDarkTheme(Preferences(this).displayTheme, systemDark)
     }
 
     override fun onBind(intent: Intent): IBinder? {
@@ -3899,7 +3894,7 @@ class BaresipService: Service() {
         val contactNames = mutableStateOf(emptyList<String>())
 
         val darkTheme = mutableStateOf(false)
-        val dynamicColors = mutableStateOf(false)
+        val dynamicColors = mutableStateOf(true)
         var messages by mutableStateOf(emptyList<Message>())
         val messageUpdate = MutableLiveData<Long>()
         val registrationUpdate = MutableLiveData<Long>()

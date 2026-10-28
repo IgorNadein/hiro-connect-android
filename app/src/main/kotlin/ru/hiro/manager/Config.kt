@@ -147,26 +147,18 @@ object Config {
         else
             "${config}sip_cuser_random yes\n"
 
-        val darkTheme = previousVariable("dark_theme")
-        Preferences(ctx).displayTheme = if (darkTheme == "yes") {
-            config = "${config}dark_theme yes\n"
-            BaresipService.darkTheme.value = true
-            AppCompatDelegate.MODE_NIGHT_YES
-        }
-        else {
-            BaresipService.darkTheme.value = false
-            AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
-        }
+        val themePreferences = Preferences(ctx)
+        val selectedTheme = if (themePreferences.hasDisplayTheme) themePreferences.displayTheme
+            else if (previousVariable("dark_theme") == "yes") AppCompatDelegate.MODE_NIGHT_YES
+            else AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
+        themePreferences.displayTheme = selectedTheme
+        BaresipService.darkTheme.value = Utils.isThemeDark(ctx)
+        config = "${config}dark_theme ${if (selectedTheme == AppCompatDelegate.MODE_NIGHT_YES) "yes" else "no"}\n"
 
-        val dynamicColors = previousVariable("dynamic_colors")
-        BaresipService.dynamicColors.value = if (dynamicColors == "yes") {
-            config = "${config}dynamic_colors yes\n"
-            true
-        }
-        else {
-            AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
-            false
-        }
+        val previousDynamicColors = previousVariable("dynamic_colors")
+        val dynamicColors = resolveDynamicColors(Preferences(ctx).dynamicColors, previousDynamicColors)
+        BaresipService.dynamicColors.value = dynamicColors
+        config = "${config}dynamic_colors ${if (dynamicColors) "yes" else "no"}\n"
 
         val colorblind = previousVariable("colorblind")
         config = if (colorblind != "")

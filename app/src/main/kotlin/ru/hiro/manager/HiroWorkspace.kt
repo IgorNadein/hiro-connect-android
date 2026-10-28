@@ -92,24 +92,24 @@ internal fun HiroWorkspaceShell(nav: NavController, calls: ViewModel, content: @
                 if (live.isNotEmpty()) TextButton(onClick = { navigation.go("main") }, modifier = Modifier.fillMaxWidth()) {
                     Icon(Icons.Default.Phone, null); Spacer(Modifier.width(8.dp)); Text("Вернуться к разговору")
                 }
-                Surface(color=MaterialTheme.colorScheme.surfaceContainerLowest) {
-                  Column(Modifier.navigationBarsPadding()) {
-                    HorizontalDivider(color=MaterialTheme.colorScheme.outlineVariant,thickness=0.5.dp)
-                    Row(Modifier.fillMaxWidth().padding(horizontal=6.dp,vertical=8.dp)) {
-                    workspaceTabs.forEachIndexed { index, tab ->
-                        val selected=workspaceTabFor(route)==tab.route
-                        val tint=if(selected)MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                        Column(Modifier.weight(1f).heightIn(min=52.dp).selectable(selected=selected,enabled=!navigation.busy,role=Role.Tab,onClick={navigation.go(tab.route)}).semantics(mergeDescendants=true){if(iconOnlyNavigation)contentDescription=tab.label}.padding(vertical=4.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(5.dp)) {
-                            Box(Modifier.size(46.dp,28.dp).then(if(selected)Modifier.background(MaterialTheme.colorScheme.primaryContainer,RoundedCornerShape(12.dp))else Modifier),contentAlignment=Alignment.Center) {
-                                BadgedBox(badge={if(index==1&&unread>0)Badge{Text(if(unread>99)"99+" else "$unread")}}) {
-                                    Icon(listOf(Icons.Outlined.Phone,Icons.AutoMirrored.Outlined.Chat,Icons.Outlined.People,Icons.Outlined.Settings)[index],null,tint=tint,modifier=Modifier.size(22.dp))
-                                }
-                            }
-                            if(!iconOnlyNavigation)Text(tab.label,style=MaterialTheme.typography.labelSmall,color=tint,maxLines=1,textAlign=TextAlign.Center)
+                Surface(color = MaterialTheme.colorScheme.surfaceContainer) {
+                    NavigationBar(modifier = Modifier.navigationBarsPadding(), windowInsets = WindowInsets(0, 0, 0, 0)) {
+                        workspaceTabs.forEachIndexed { index, tab ->
+                            val selected = workspaceTabFor(route) == tab.route
+                            NavigationBarItem(
+                                selected = selected,
+                                enabled = !navigation.busy,
+                                onClick = { navigation.go(tab.route) },
+                                icon = {
+                                    BadgedBox(badge = { if (index == 1 && unread > 0) Badge { Text(if (unread > 99) "99+" else "$unread") } }) {
+                                        Icon(listOf(Icons.Outlined.Phone, Icons.AutoMirrored.Outlined.Chat, Icons.Outlined.People, Icons.Outlined.Settings)[index],
+                                            contentDescription = if (iconOnlyNavigation) tab.label else null)
+                                    }
+                                },
+                                label = if (iconOnlyNavigation) null else ({ Text(tab.label, maxLines = 1) })
+                            )
                         }
                     }
-                    }
-                  }
                 }
             }
         }) { padding -> Box(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding)) { content() } }
@@ -315,7 +315,26 @@ private fun WorkspaceAppearance(nav: NavController) {
         item { WorkspaceCard { listOf(-1 to "Как в системе",1 to "Светлая тема",2 to "Тёмная тема").forEach { (mode,title) ->
             Row(Modifier.fillMaxWidth().clickable { selected=mode;Preferences(context).displayTheme=mode;BaresipService.darkTheme.value=Utils.isThemeDark(context);AppCompatDelegate.setDefaultNightMode(mode) }.padding(vertical=8.dp),verticalAlignment=Alignment.CenterVertically) { RadioButton(selected==mode,onClick=null);Spacer(Modifier.width(12.dp));Text(title) }
         } } }
-        item { Text("Размер текста и доступность задаются в Android. Светлая тема не зависит от системной тёмной темы.") }
+        if (Build.VERSION.SDK_INT >= 31) item {
+            val dynamic by remember { BaresipService.dynamicColors }
+            WorkspaceCard {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Цвета системы", style = MaterialTheme.typography.titleMedium)
+                        Text("Использовать цвета оформления Android", style = MaterialTheme.typography.bodySmall)
+                    }
+                    Switch(checked = dynamic, onCheckedChange = { enabled ->
+                        Preferences(context).dynamicColors = enabled
+                        BaresipService.dynamicColors.value = enabled
+                        if (Config.isInitialized()) {
+                            Config.replaceVariable("dynamic_colors", if (enabled) "yes" else "no")
+                            Config.save()
+                        }
+                    })
+                }
+            }
+        }
+        item { Text("Размер текста и доступность задаются в Android.") }
     }
 }
 

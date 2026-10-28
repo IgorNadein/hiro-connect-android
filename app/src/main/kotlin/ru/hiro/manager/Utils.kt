@@ -937,11 +937,8 @@ object Utils {
     }
 
     fun isThemeDark(ctx: Context) : Boolean {
-        return when (Preferences(ctx).displayTheme) {
-            AppCompatDelegate.MODE_NIGHT_YES -> true
-            AppCompatDelegate.MODE_NIGHT_NO -> false
-            else -> ctx.resources?.configuration?.uiMode?.and(Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
-        }
+        val systemDark = ctx.resources.configuration.uiMode.and(Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+        return resolveDarkTheme(Preferences(ctx).displayTheme, systemDark)
     }
 
     fun isAirplaneModeOn(ctx: Context): Boolean {

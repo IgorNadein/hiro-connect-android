@@ -74,6 +74,7 @@ class MainActivity : ComponentActivity() {
         window.addFlags(WindowManager.LayoutParams.FLAG_IGNORE_CHEEK_PRESSES)
 
         BaresipService.darkTheme.value = Utils.isThemeDark(this)
+        Preferences(this).dynamicColors?.let { BaresipService.dynamicColors.value = it }
 
         // Must be done after view has been created
         this.setShowWhenLocked(true)

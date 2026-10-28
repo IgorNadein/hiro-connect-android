@@ -1281,6 +1281,7 @@ private fun checkOnClick(ctx: Context, viewModel: SettingsViewModel): Boolean {
     val dynamicColors = viewModel.dynamicColors.value
     if (BaresipService.dynamicColors.value != dynamicColors) {
         BaresipService.dynamicColors.value = dynamicColors
+        Preferences(ctx).dynamicColors = dynamicColors
         Config.replaceVariable("dynamic_colors", if (dynamicColors) "yes" else "no")
         viewModel.save = true
     }
