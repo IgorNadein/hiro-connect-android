@@ -38,3 +38,10 @@ jobs:
           ./gradlew :app:testDebugUnitTest :app:assembleDebug
           ./gradlew -I tools/ui-smoke/run-ui.init.gradle :app:testDebugUnitTest --tests ru.hiro.manager.NativeSharedCallsTest
 
+      - name: Upload interface previews
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: calls-interface-previews
+          path: build/ui-smoke/*.png
+          if-no-files-found: ignore
