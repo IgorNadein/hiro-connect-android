@@ -43,10 +43,10 @@ internal fun hiroListTime(timestamp: Long): String {
 
 @Composable internal fun hiroTone(tone: HiroTone): Pair<Color,Color> = when(tone) {
     HiroTone.Brand -> MaterialTheme.colorScheme.primaryContainer to MaterialTheme.colorScheme.primary
-    HiroTone.Good -> (if(BaresipService.darkTheme.value)Color(0xFF21392F) else Color(0xFFEAF7EF)) to
-        (if(BaresipService.darkTheme.value)Color(0xFF9BD6B9) else Color(0xFF176348))
-    HiroTone.Warning -> (if(BaresipService.darkTheme.value)Color(0xFF3C3321) else Color(0xFFFFF6E2)) to
-        (if(BaresipService.darkTheme.value)Color(0xFFF2D089) else Color(0xFF79540C))
+    HiroTone.Good -> (if(LocalHiroDarkTheme.current)Color(0xFF21392F) else Color(0xFFEAF7EF)) to
+        (if(LocalHiroDarkTheme.current)Color(0xFF9BD6B9) else Color(0xFF176348))
+    HiroTone.Warning -> (if(LocalHiroDarkTheme.current)Color(0xFF3C3321) else Color(0xFFFFF6E2)) to
+        (if(LocalHiroDarkTheme.current)Color(0xFFF2D089) else Color(0xFF79540C))
     HiroTone.Error -> MaterialTheme.colorScheme.errorContainer to MaterialTheme.colorScheme.onErrorContainer
     else -> MaterialTheme.colorScheme.surfaceContainerLow to MaterialTheme.colorScheme.onSurfaceVariant
 }
