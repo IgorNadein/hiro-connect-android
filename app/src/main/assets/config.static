@@ -15,7 +15,7 @@ audio_buffer 20-160
 audio_silence -35.0
 audio_telev_pt 101
 audio_jitter_buffer_type adaptive
-audio_jitter_buffer_ms 100-200
+audio_jitter_buffer_ms 60-120
 audio_jitter_buffer_size 50
 rtp_stats no
 rtp_timeout 60
